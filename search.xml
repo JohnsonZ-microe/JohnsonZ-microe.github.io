@@ -4,11 +4,24 @@
   
     
     <entry>
-      <title>五次社会危机与变革</title>
-      <link href="/2024/01/23/%E4%BA%94%E6%AC%A1%E7%A4%BE%E4%BC%9A%E5%8D%B1%E6%9C%BA%E4%B8%8E%E5%8F%98%E9%9D%A9/"/>
-      <url>/2024/01/23/%E4%BA%94%E6%AC%A1%E7%A4%BE%E4%BC%9A%E5%8D%B1%E6%9C%BA%E4%B8%8E%E5%8F%98%E9%9D%A9/</url>
+      <title>设计本地加速器的意义</title>
+      <link href="/2024/06/06/%E8%AE%BE%E8%AE%A1%E6%9C%AC%E5%9C%B0%E5%8A%A0%E9%80%9F%E5%99%A8%E7%9A%84%E6%84%8F%E4%B9%89/"/>
+      <url>/2024/06/06/%E8%AE%BE%E8%AE%A1%E6%9C%AC%E5%9C%B0%E5%8A%A0%E9%80%9F%E5%99%A8%E7%9A%84%E6%84%8F%E4%B9%89/</url>
       
-        <content type="html"><![CDATA[]]></content>
+        <content type="html"><![CDATA[<h1 id="设计本地硬件加速器的意义"><a href="#设计本地硬件加速器的意义" class="headerlink" title="设计本地硬件加速器的意义"></a>设计本地硬件加速器的意义</h1><p>最近在研究怎样针对diffusion model设计硬件加速器，这也将成为我博士工作的一部分。以diffusion model为基础的AI生成模型在很多方面惊艳了我，好似是一件极尽玄妙的高维造物。在我尝试理解diffusion model是如何从满是马赛克的噪声图创造出不输于人类画手的绝美图像的同时，发现了开展新工作的动机。</p><p><font face="仿宋"><font size=2><strong>B站上找到的由AI生成的宫崎骏画风壁纸 – <a href="https://www.bilibili.com/video/BV1yQ4y1s71b/?spm_id_from=333.337">https://www.bilibili.com/video/BV1yQ4y1s71b/?spm_id_from=333.337</a></strong></font></font></p><p>我们现在熟知的AI生成模型通常需要大量的计算资源，因此它们经常被部署在云端。比如Sora和GPT4，用户需要通过网络接口才能进行访问和使用。尽管云端的AI生成模型已经具备非常强大的能力，但如果要真正刺激用户的使用需求，AI模型保密性与可定制性一定至关重要。想象一下，我们希望AI模型帮助自己自己生成博客，工作笔记甚至论文图片。但云端的模型往往同时接受成百上千的用户数据，其必然倾向于调和所用人的共同需求。如果要让它成为我们的助手，其表现往往难以获得信任。</p><p>解决这个问题的方案有二，第一个思路是缩小生成模型的规模，使其能够完全部署在本地设备上。这种方案尽管获得了完全的可定制性，但把巨大规模的生成模型缩小到本地设备能够支持的大小，其表现一定会大打折扣。第二个思路是使用联合学习（federated learning）的算法，使客户能够（client）私有一部分模型的权重。此时AI模型与我们的关系好比是事务所与客户的关系，这相当于牺牲了一部分的可定制性，但对本地硬件上更加友好。总而言之，这是一个模型表现，本地计算效率和本地-云端通信效率互相折衷的局面。如果本地的计算效率更高，我们就可以将更大一部分的模型部署于本地，这不仅能降低云端通信的负载，我们的模型也将拥有更强的可定制性，这也是设计部署于本地的加速器的意义所在。</p><p>就以个人PC为例，使用自带的显卡能否支持图片生成模型的部署呢？我们可以做一个简单的推算。以Google Imagen为例，其使用T5-XXL作为text encoder。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>从残差入手——ISSCC2024中的diffusion model加速器</title>
+      <link href="/2024/06/05/%E4%BB%8E%E6%AE%8B%E5%B7%AE%E5%85%A5%E6%89%8B%E2%80%94%E2%80%94ISSCC2024%E4%B8%AD%E7%9A%84diffusion-model%E5%8A%A0%E9%80%9F%E5%99%A8/"/>
+      <url>/2024/06/05/%E4%BB%8E%E6%AE%8B%E5%B7%AE%E5%85%A5%E6%89%8B%E2%80%94%E2%80%94ISSCC2024%E4%B8%AD%E7%9A%84diffusion-model%E5%8A%A0%E9%80%9F%E5%99%A8/</url>
+      
+        <content type="html"><![CDATA[<h1 id="从残差入手——ISSCC2024中的diffusion-model加速器设计"><a href="#从残差入手——ISSCC2024中的diffusion-model加速器设计" class="headerlink" title="从残差入手——ISSCC2024中的diffusion model加速器设计"></a>从残差入手——ISSCC2024中的diffusion model加速器设计</h1><p>最近在研究怎样针对diffusion model设计硬件加速器，这也将成为我博士工作的一部分。以diffusion model为基础的AI生成模型在很多方面惊艳了我，好似是一件极尽玄妙的高维造物。在我尝试理解diffusion model是如何从满是马赛克的噪声图创造出不输于人类画手的绝美图像的同时，发现了开展新工作的动机。</p><p><font face="仿宋"><font size=2><strong>B站上找到的由AI生成的宫崎骏画风壁纸 – <a href="https://www.bilibili.com/video/BV1yQ4y1s71b/?spm_id_from=333.337">https://www.bilibili.com/video/BV1yQ4y1s71b/?spm_id_from=333.337</a></strong></font></font></p><p>我们现在熟知的AI生成模型通常需要大量的计算资源，因此它们经常被部署在云端。比如Sora和GPT4，用户需要通过网络接口才能进行访问和使用。尽管云端的AI生成模型已经具备非常强大的能力，但如果要真正刺激用户的使用需求，AI模型保密性与可定制性一定至关重要。想象一下，我们希望AI模型帮助自己自己生成博客，工作笔记甚至论文图片。但云端的模型往往同时接受成百上千的用户数据，其必然倾向于调和所用人的共同需求。如果要让它成为我们的助手，其表现往往难以获得信任。</p><p>解决这个问题的方案有二，第一个思路是缩小生成模型的规模，使其能够完全部署在本地设备上。这种方案尽管获得了完全的可定制性，但把巨大规模的生成模型缩小到本地设备能够支持的大小，其表现一定会大打折扣。第二个思路是使用联合学习（federated learning）的算法，使客户能够（client）私有一部分模型的权重。此时AI模型与我们的关系好比是事务所与客户的关系，这相当于牺牲了一部分的可定制性，但对本地硬件上更加友好。总而言之，这是一个模型表现，本地计算效率和本地-云端通信效率互相折衷的局面。如果本地的计算效率更高，我们就可以将更大一部分的模型部署于本地，这不仅能降低云端通信的负载，我们的模型也将拥有更强的可定制性，这也是设计部署于本地的加速器的意义所在。</p><h2 id="Diffusion-Model怎样生成图片"><a href="#Diffusion-Model怎样生成图片" class="headerlink" title="Diffusion Model怎样生成图片"></a>Diffusion Model怎样生成图片</h2><p>这里简单叙述一下diffusion model生成图片的过程。<br>引用发表于CPVR2023的U-ViT模型：<br><img src="/image-1.png" alt="alt text"></p><h2 id="ISSCC2024-20-2的加速器设计"><a href="#ISSCC2024-20-2的加速器设计" class="headerlink" title="ISSCC2024 20.2的加速器设计"></a>ISSCC2024 20.2的加速器设计</h2><p>正巧在今年ISSCC2024，由清华大学发表的20.2设计了加速器，给我们提供了一种思路和方向。</p><p><img src="/image.png" alt="alt text"></p><h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[]</p>]]></content>
       
       
       
@@ -97,19 +110,8 @@
     
     <entry>
       <title></title>
-      <link href="/link/index.html"/>
-      <url>/link/index.html</url>
-      
-        <content type="html"><![CDATA[]]></content>
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title></title>
-      <link href="/music/index.html"/>
-      <url>/music/index.html</url>
+      <link href="/tags/index.html"/>
+      <url>/tags/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
       
@@ -130,8 +132,19 @@
     
     <entry>
       <title></title>
-      <link href="/tags/index.html"/>
-      <url>/tags/index.html</url>
+      <link href="/music/index.html"/>
+      <url>/music/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/link/index.html"/>
+      <url>/link/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
       
