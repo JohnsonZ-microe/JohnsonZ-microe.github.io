@@ -113,7 +113,7 @@
       
       <categories>
           
-          <category> 模型算法 </category>
+          <category> 芯片设计 </category>
           
       </categories>
       
@@ -251,8 +251,8 @@
     
     <entry>
       <title></title>
-      <link href="/movies/index.html"/>
-      <url>/movies/index.html</url>
+      <link href="/link/index.html"/>
+      <url>/link/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
       
@@ -262,8 +262,8 @@
     
     <entry>
       <title></title>
-      <link href="/link/index.html"/>
-      <url>/link/index.html</url>
+      <link href="/movies/index.html"/>
+      <url>/movies/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
       
