@@ -1,0 +1,267 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>LLM量化工具包 | _ConchNest🐚</title><meta name="author" content="宛渠之民"><meta name="copyright" content="宛渠之民"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="ffffff"><meta name="description" content="LLM量化工具包今天用一天时间整理一下当前对大型语言模型（LLM）各个主流量化方法的思路，看看能不能得到启发。 [1] I-BERT [ICML 2021]I-BERT应该是将INT型量化引入Transformer模型的开山之作。其目的主要是为了去除浮点数逻辑的巨大开销，原文中提到：除了完成了各个Non-linear Function （GeLU, Softmax，LayerNorm）的量化外。I">
+<meta property="og:type" content="article">
+<meta property="og:title" content="LLM量化工具包">
+<meta property="og:url" content="https://concznest.cc/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/index.html">
+<meta property="og:site_name" content="_ConchNest🐚">
+<meta property="og:description" content="LLM量化工具包今天用一天时间整理一下当前对大型语言模型（LLM）各个主流量化方法的思路，看看能不能得到启发。 [1] I-BERT [ICML 2021]I-BERT应该是将INT型量化引入Transformer模型的开山之作。其目的主要是为了去除浮点数逻辑的巨大开销，原文中提到：除了完成了各个Non-linear Function （GeLU, Softmax，LayerNorm）的量化外。I">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://concznest.cc/img/fig4.jpg">
+<meta property="article:published_time" content="2023-12-21T15:59:12.000Z">
+<meta property="article:modified_time" content="2024-12-16T09:20:05.499Z">
+<meta property="article:author" content="宛渠之民">
+<meta property="article:tag" content="量化">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://concznest.cc/img/fig4.jpg"><link rel="shortcut icon" href="/img/favicon.ico"><link rel="canonical" href="https://concznest.cc/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/node-snackbar/dist/snackbar.min.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"languages":{"hits_empty":"找不到您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: true,
+    post: true
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: {"chs_to_cht":"你已切换为繁体中文","cht_to_chs":"你已切换为简体中文","day_to_night":"你已切换为深色模式","night_to_day":"你已切换为浅色模式","bgLight":"#49b1f5","bgDark":"#1f1f1f","position":"top-right"},
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyload: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'LLM量化工具包',
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2024-12-16 10:20:05'
+}</script><script>(win=>{
+      win.saveToLocal = {
+        set: (key, value, ttl) => {
+          if (ttl === 0) return
+          const now = Date.now()
+          const expiry = now + ttl * 86400000
+          const item = {
+            value,
+            expiry
+          }
+          localStorage.setItem(key, JSON.stringify(item))
+        },
+      
+        get: key => {
+          const itemStr = localStorage.getItem(key)
+      
+          if (!itemStr) {
+            return undefined
+          }
+          const item = JSON.parse(itemStr)
+          const now = Date.now()
+      
+          if (now > item.expiry) {
+            localStorage.removeItem(key)
+            return undefined
+          }
+          return item.value
+        }
+      }
+    
+      win.getScript = (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        script.onerror = reject
+        script.onload = script.onreadystatechange = function() {
+          const loadState = this.readyState
+          if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+          script.onload = script.onreadystatechange = null
+          resolve()
+        }
+
+        Object.keys(attr).forEach(key => {
+          script.setAttribute(key, attr[key])
+        })
+
+        document.head.appendChild(script)
+      })
+    
+      win.getCSS = (url, id = false) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onerror = reject
+        link.onload = link.onreadystatechange = function() {
+          const loadState = this.readyState
+          if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+          link.onload = link.onreadystatechange = null
+          resolve()
+        }
+        document.head.appendChild(link)
+      })
+    
+      win.activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      win.activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+      const t = saveToLocal.get('theme')
+    
+        if (t === 'dark') activateDarkMode()
+        else if (t === 'light') activateLightMode()
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        if (asideStatus === 'hide') {
+          document.documentElement.classList.add('hide-aside')
+        } else {
+          document.documentElement.classList.remove('hide-aside')
+        }
+      }
+    
+      const detectApple = () => {
+        if(/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)){
+          document.documentElement.classList.add('apple')
+        }
+      }
+      detectApple()
+    })(window)</script><link rel="stylesheet" href="/css/custom.css" media="defer" onload="this.media='all'"><!-- hexo injector head_end start --><link rel="stylesheet" href="https://npm.elemecdn.com/hexo-butterfly-tag-plugins-plus@latest/lib/assets/font-awesome-animation.min.css" media="defer" onload="this.media='all'"><link rel="stylesheet" href="https://npm.elemecdn.com/hexo-butterfly-tag-plugins-plus@latest/lib/tag_plugins.css" media="defer" onload="this.media='all'"><script src="https://npm.elemecdn.com/hexo-butterfly-tag-plugins-plus@latest/lib/assets/carousel-touch.js"></script><!-- hexo injector head_end end --><meta name="generator" content="Hexo 6.3.0"></head><body><div id="loading-box"><div class="loading-left-bg"></div><div class="loading-right-bg"></div><div class="spinner-box"><div class="configure-border-1"><div class="configure-core"></div></div><div class="configure-border-2"><div class="configure-core"></div></div><div class="loading-word">加载中...</div></div></div><script>(()=>{
+  const $loadingBox = document.getElementById('loading-box')
+  const $body = document.body
+  const preloader = {
+    endLoading: () => {
+      $body.style.overflow = ''
+      $loadingBox.classList.add('loaded')
+    },
+    initLoading: () => {
+      $body.style.overflow = 'hidden'
+      $loadingBox.classList.remove('loaded')
+    }
+  }
+
+  preloader.initLoading()
+  window.addEventListener('load',() => { preloader.endLoading() })
+
+  if (false) {
+    document.addEventListener('pjax:send', () => { preloader.initLoading() })
+    document.addEventListener('pjax:complete', () => { preloader.endLoading() })
+  }
+})()</script><div id="web_bg"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img is-center"><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avartar.png" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"/></div><div class="sidebar-site-data site-data is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">64</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">8</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><hr class="custom-hr"/><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fas fa-list"></i><span> 列表</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/music/"><i class="fa-fw fas fa-music"></i><span> 音乐</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> 视频</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> 友链</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url('/img/fig4.jpg')"><nav id="nav"><span id="blog-info"><a href="/" title="_ConchNest🐚"><span class="site-name">_ConchNest🐚</span></a></span><div id="menus"><div id="search-button"><a class="site-page social-icon search" href="javascript:void(0);"><i class="fas fa-search fa-fw"></i><span> 搜索</span></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fas fa-list"></i><span> 列表</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/music/"><i class="fa-fw fas fa-music"></i><span> 音乐</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> 视频</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> 友链</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于</span></a></div></div><div id="toggle-menu"><a class="site-page" href="javascript:void(0);"><i class="fas fa-bars fa-fw"></i></a></div></div></nav><div id="post-info"><h1 class="post-title">LLM量化工具包</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2023-12-21T15:59:12.000Z" title="发表于 2023-12-21 16:59:12">2023-12-21</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2024-12-16T09:20:05.499Z" title="更新于 2024-12-16 10:20:05">2024-12-16</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%8A%A0%E9%80%9F%E7%AE%97%E6%B3%95/">加速算法</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title="LLM量化工具包"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">阅读量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="post-content" id="article-container"><h2 id="LLM量化工具包"><a href="#LLM量化工具包" class="headerlink" title="LLM量化工具包"></a>LLM量化工具包</h2><p>今天用一天时间整理一下当前对大型语言模型（LLM）各个主流量化方法的思路，看看能不能得到启发。</p>
+<h4 id="1-I-BERT-ICML-2021"><a href="#1-I-BERT-ICML-2021" class="headerlink" title="[1] I-BERT [ICML 2021]"></a>[1] I-BERT [ICML 2021]</h4><p>I-BERT应该是将INT型量化引入Transformer模型的开山之作。其目的主要是为了去除浮点数逻辑的巨大开销，原文中提到：<br><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image.png" class="" title="Alt text"><br>除了完成了各个Non-linear Function （GeLU, Softmax，LayerNorm）的量化外。I-BERT实现了所有矩阵运算都量化至8bit，听起来似乎十分激进，但根据实验，它在RoBERTa-Base/Large上的GLUE分数比浮点模型还要分别高0.3和0.5。</p>
+<h4 id="2-ZeroQuant-NIPS-2022"><a href="#2-ZeroQuant-NIPS-2022" class="headerlink" title="[2] ZeroQuant [NIPS 2022]"></a>[2] ZeroQuant [NIPS 2022]</h4><p>ZeroQuant介绍了一种训练后量化：Post Training Quantization (PTQ) 的方法。之所以不采用以往的量化感知训练: quantization aware training（QAT）的方法，是因为对于LLM而言，受限于发布者的保护性策略，往往无法获得其训练集。<br>它采用了以下方法：</p>
+<ol>
+<li>group-wise quantization for weight, token-wise quantization for activation。<br>将weight一组一组分别进行量化，每个token单独进行量化——分别计算scale。</li>
+<li>引入了知识蒸馏(Knowledge distillation)的方法<br>本质上，这个work就是一个group-wise quantization，。之所以叫ZeroQuant，是因为他们不需要提前经过一个calibration来搜索activation的scale。weight的scale提前搜好，activation的scale用kernal fusion解决</li>
+</ol>
+<h4 id="3-LLM-int8-NIPS-2022"><a href="#3-LLM-int8-NIPS-2022" class="headerlink" title="[3] LLM.int8() [NIPS 2022]"></a>[3] LLM.int8() [NIPS 2022]</h4><p>这篇文章将outliers定义为highly systematic emergent features,<br><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-1.png" class="" title="Alt text"><br>这篇文章的主要思路是把outlier所处了一列（feature）与其余的channel分开量化，outlier采用16bit浮点数，其余用Int8类型。Outliers feature仅仅占0.1%的总feature数。<br>文章提出的寻找outlier的方法为：对于Transformer的一个hidden state（Q,K,V,output,FC1）而言，其某一列如果至少有一个值大于6.0，那么就对这一列进行跟踪。如果后续这一列在25%的Transformer hidden state都有值大于6.0，并且覆盖到了25%以上的token数目，那么这一列将被标记为Outlier feature。(attention layer与FC2不进行分析)</p>
+<p>之所以用上面寻找outlier的方法基于下面这个发现：outlier的出现是系统化的（systematic）—— 对于一个Transformer的feature，要么一直出现outlier，要么从来不出现outlier。</p>
+<p>该work成功将拥有175B参数的GPT3量化到了INT8 （其中0.1%是FP16）</p>
+<h4 id="4-OPTQ-ICLR-2023"><a href="#4-OPTQ-ICLR-2023" class="headerlink" title="[4] OPTQ [ICLR 2023]"></a>[4] OPTQ [ICLR 2023]</h4><p>第一次将拥有100B以上的大模型量化到了3/4bit，它基于Optimal Brain Quantization (OBQ)的方法：<br>量化的目标可以写作下式：<br><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-5.png" class="" title="Alt text"><br>或者可以写成如下形式：<br><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-3.png" class="" title="Alt text"><br>OBQ每次量化一个weight。量化之后，对这个weight所在的那一行中其他weight进行更新，权重更新矩阵为<br><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-4.png" class="" title="Alt text"><br>其中$H_F=2X_FX_F^T$为Hessian Matrix。</p>
+<h4 id="5-BRECQ-ICLR-2021"><a href="#5-BRECQ-ICLR-2021" class="headerlink" title="[5] BRECQ [ICLR 2021]"></a>[5] BRECQ [ICLR 2021]</h4><p>BRECQ希望在层与层之间量化误差（quantization error）的传递(cross-layer dependency)与泛化误差(generalization error)之间取得一个平衡。<br>该量化方案的优化目标并不是最小化损失函数，而是最小化feature map的变化。这样的话，我们量化后的模型就可以每一层每一层得到。<br>首先计算loss关于weigth的Hessian matrix<br><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-7.png" class="" title="Alt text"><br>由于预训练后的模型，其gradient会收敛到一个接近于0的值，我们可以认为loss的Hessian matrix是半正定的——Hessian matrix为半正定的函数是一个凸函数（loss在其邻域内为最小值）<br>所以上式的第一项趋近于0。<br>所以就变成了下面这个式子<img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-9.png" class="" title="Alt text"><br><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-10.png" class="" title="Alt text"><br>这个Hessian matrix提供了各个层之间的依赖(dependency)信息<br>训练的目标为：<br><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-11.png" class="" title="Alt text"><br>每次量化当前block的weight并更新剩余的weight，直到整个模型完成量化。</p>
+<h4 id="6-Bit-Split-ICML-2020"><a href="#6-Bit-Split-ICML-2020" class="headerlink" title="[6] Bit-Split [ICML 2020]"></a>[6] Bit-Split [ICML 2020]</h4><p>这篇文章提出了传统量化算法存在的三个问题：1. 对神经网络的每一层的量化独立进行，本层的量化误差最小化不代表整个模型的量化误差最小化。2. 量化过程仅仅优化如clipping value与quantization scales之类的量化参数，而量化后的weight是被动地被舍入操作（rounding operation）调节，实际上量化参数与最终的计算结果并没有直接的相关性。3. 对weight的量化和对input的量化分开进行。<br>所以这篇文章的主要思路是把INT类型的数拆分为一个一个的bit，之后从MSB开始依次对每一个bit搜索其与浮点模型误差最小的取值，最后再把各个bit缝合(stitching)起来。由于低位的bit考虑了高位bit的量化误差，所以实现了量化参数与weight同时优化。</p>
+<h4 id="7-AICQ-ICML-2019"><a href="#7-AICQ-ICML-2019" class="headerlink" title="[7] AICQ [ICML 2019]"></a>[7] AICQ [ICML 2019]</h4><p>该论文主要创新点是run-time dynamic quantization， 量化相关的参数（clipping value，quantization scales）在inference的过程中得到，它们是动态调整的，极大程度提高了量化后模型的表现。</p>
+<h4 id="8-Power-aware-Quantization-ICLR-2020"><a href="#8-Power-aware-Quantization-ICLR-2020" class="headerlink" title="[8] Power-aware Quantization [ICLR 2020]"></a>[8] Power-aware Quantization [ICLR 2020]</h4><p>该论文创新点为power-aware quantization</p>
+<h3 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h3><p><font face="Times new roman" size=3><br>[1] S. Kim, A. Gholami, Z. Yao, M. W. Mahoney, and K. Keutzer, “I-BERT:Integer-only BERT quantization,” in <em>Proc. Int. conf. mach. learn. (ICML)</em>, 2021, pp. 5506–5518.<br>[2] Z. Yao, et al., “Zeroquant: Efficient and affordable post-training quantization for large-scale transformers,” in <em>Proc. Int. Conf. Neural Inf. Process. Syst. (NIPS)</em>, 2022. pp 27168-27183.<br>[3] T. Dettmers, M. Lewis, Y. Belkada, and L. Zettlemoyer, “Gpt3. int8 (): 8-bit matrix multiplication for transformers at scale,” in <em>Proc. Int. Conf. Neural Inf. Process. Syst. (NIPS)</em>, 2022. pp. 30318-30332.<br>[4] E. Frantar, et al., “OPTQ: Accurate quantization for generative pre-trained transformers,” in <em>Proc. Int. Conf. Learn. Represent. (ICLR)</em>, Oct. 2022.<br>[5] Y. Li, et al., “BRECQ: Pushing the Limit of Post-Training Quantization by Block Reconstruction,” in <em>Proc. Int. Conf. Learn. Represent. (ICLR)</em>, Oct. 2021.<br>[6] P. Wang, et al., “Towards accurate post-training network quantization via bit-split and stitching,”  in <em>Proc. Int. conf. mach. learn. (ICML)</em>, 2020, pp. 9847-9856.<br>[7] Banner, Y. Nahshan, and D. Soudry, “Post training 4-bit quantization of convolutional networks for rapid-deployment,” in <em>Proc. Int. Conf. Neural Inf. Process. Syst. (NIPS)</em>, 2019, pp. 7948–7956.<br>[8] Alizadeh, Milad, et al. “Gradient $\ell_1 $ Regularization for Quantization Robustness.” International Conference on Learning Representations.</p>
+<font>
+
+
+
+
+
+
+
+
+
+
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://concznest.cc">宛渠之民</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://concznest.cc/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/">https://concznest.cc/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="https://concznest.cc" target="_blank">_ConchNest🐚</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E9%87%8F%E5%8C%96/">量化</a></div><div class="post_share"><div class="social-share" data-image="/img/fig4.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><div class="prev-post pull-full"><a href="/2023/12/25/JSSC-2023-2-Design-and-Implementation-of-a-Hybrid-ADC-DAC-Free-Input-Sparsity-Aware-Precision-Reconfigurable-RRAM-Processing-in-Memory-Chip/" title="JSSC 2023.2 Design and Implementation of a Hybrid, ADC/DAC-Free, Input-Sparsity-Aware, Precision Reconfigurable RRAM Processing-in-Memory Chip"><img class="cover" src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/JSSC1.png" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="pagination-info"><div class="label">上一篇</div><div class="prev_info">JSSC 2023.2 Design and Implementation of a Hybrid, ADC/DAC-Free, Input-Sparsity-Aware, Precision Reconfigurable RRAM Processing-in-Memory Chip</div></div></a></div></nav></div><div class="aside-content" id="aside-content"><div class="card-widget card-info"><div class="is-center"><div class="avatar-img"><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avartar.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info__name">宛渠之民</div><div class="author-info__description"></div></div><div class="card-info-data site-data is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">64</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">8</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/JohnsonZ-microe"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，这里会定期更新有关神经网络算法与芯片设计技术相关的内容，希望你能得到收获~ ☀️### 公告</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85"><span class="toc-number">1.</span> <span class="toc-text">LLM量化工具包</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-I-BERT-ICML-2021"><span class="toc-number">1.0.1.</span> <span class="toc-text">[1] I-BERT [ICML 2021]</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-ZeroQuant-NIPS-2022"><span class="toc-number">1.0.2.</span> <span class="toc-text">[2] ZeroQuant [NIPS 2022]</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-LLM-int8-NIPS-2022"><span class="toc-number">1.0.3.</span> <span class="toc-text">[3] LLM.int8() [NIPS 2022]</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-OPTQ-ICLR-2023"><span class="toc-number">1.0.4.</span> <span class="toc-text">[4] OPTQ [ICLR 2023]</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#5-BRECQ-ICLR-2021"><span class="toc-number">1.0.5.</span> <span class="toc-text">[5] BRECQ [ICLR 2021]</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#6-Bit-Split-ICML-2020"><span class="toc-number">1.0.6.</span> <span class="toc-text">[6] Bit-Split [ICML 2020]</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#7-AICQ-ICML-2019"><span class="toc-number">1.0.7.</span> <span class="toc-text">[7] AICQ [ICML 2019]</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#8-Power-aware-Quantization-ICLR-2020"><span class="toc-number">1.0.8.</span> <span class="toc-text">[8] Power-aware Quantization [ICLR 2020]</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Reference"><span class="toc-number">1.1.</span> <span class="toc-text">Reference</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/05/13/%E5%A4%9A%E7%94%B5%E5%8E%8B%E5%9F%9F%E8%AE%BE%E8%AE%A1%E4%B8%ADpower-stripe%E4%B8%8Epower-rail%E5%BB%B6%E9%95%BF%E7%BA%BF%E7%9A%84%E8%AE%BE%E7%BD%AE/" title="多电压域设计中power stripe与power rail延长线的设置">多电压域设计中power stripe与power rail延长线的设置</a><time datetime="2025-05-13T15:11:45.000Z" title="发表于 2025-05-13 17:11:45">2025-05-13</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/04/23/Digital-as-a-top%E6%B5%81%E7%A8%8B/" title="Digital as a top流程">Digital as a top流程</a><time datetime="2025-04-23T12:40:38.000Z" title="发表于 2025-04-23 14:40:38">2025-04-23</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/04/04/VCS-Verdi%E4%BB%BF%E7%9C%9F%E6%B5%81%E7%A8%8B/" title="VCS+Verdi仿真流程">VCS+Verdi仿真流程</a><time datetime="2025-04-04T08:47:53.000Z" title="发表于 2025-04-04 10:47:53">2025-04-04</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/03/19/SRAM-verilog-behavior-model%E5%86%99%E6%B3%95/" title="SRAM verilog behavior model写法">SRAM verilog behavior model写法</a><time datetime="2025-03-19T11:01:42.000Z" title="发表于 2025-03-19 12:01:42">2025-03-19</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/01/03/VLSI2024-%E5%8A%9F%E8%80%97%E4%BA%8B%E4%BB%B6%E7%9B%91%E6%B5%8B%E7%9A%84TinyML-SoC/" title="VLSI2024-功耗事件监测的TinyML SoC">VLSI2024-功耗事件监测的TinyML SoC</a><time datetime="2025-01-03T09:59:50.000Z" title="发表于 2025-01-03 10:59:50">2025-01-03</time></div></div></div></div></div></div></main><footer id="footer"><div id="footer-wrap"><div class="copyright">&copy;2020 - 2025 By 宛渠之民</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="浅色和深色模式转换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/instant.page/instantpage.min.js" type="module"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><script src="https://cdn.jsdelivr.net/npm/node-snackbar/dist/snackbar.min.js"></script><script>function panguFn () {
+  if (typeof pangu === 'object') pangu.autoSpacingPage()
+  else {
+    getScript('https://cdn.jsdelivr.net/npm/pangu/dist/browser/pangu.min.js')
+      .then(() => {
+        pangu.autoSpacingPage()
+      })
+  }
+}
+
+function panguInit () {
+  if (false){
+    GLOBAL_CONFIG_SITE.isPost && panguFn()
+  } else {
+    panguFn()
+  }
+}
+
+document.addEventListener('DOMContentLoaded', panguInit)</script><div class="js-pjax"><script>if (!window.MathJax) {
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      tags: 'ams'
+    },
+    chtml: {
+      scale: 1.1
+    },
+    options: {
+      renderActions: {
+        findScript: [10, doc => {
+          for (const node of document.querySelectorAll('script[type^="math/tex"]')) {
+            const display = !!node.type.match(/; *mode=display/)
+            const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display)
+            const text = document.createTextNode('')
+            node.parentNode.replaceChild(text, node)
+            math.start = {node: text, delim: '', n: 0}
+            math.end = {node: text, delim: '', n: 0}
+            doc.math.push(math)
+          }
+        }, '']
+      }
+    }
+  }
+  
+  const script = document.createElement('script')
+  script.src = 'https://cdn.jsdelivr.net/npm/mathjax/es5/tex-mml-chtml.min.js'
+  script.id = 'MathJax-script'
+  script.async = true
+  document.head.appendChild(script)
+} else {
+  MathJax.startup.document.state(0)
+  MathJax.texReset()
+  MathJax.typesetPromise()
+}</script></div><script defer src="/js/cursor.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><span id="loading-status"></span><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="is-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据库加载中</span></div><div class="search-wrap"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索文章" type="text"/></div></div><hr/><div id="local-search-results"></div><div id="local-search-stats-wrap"></div></div></div><div id="search-mask"></div><script src="/js/search/local-search.js"></script></div></div><!-- hexo injector body_end start --> <script data-pjax>if(document.getElementById('recent-posts') && (location.pathname ==='/'|| '/' ==='all')){
+    var parent = document.getElementById('recent-posts');
+    var child = '<div class="recent-post-item" style="width:100%;height: auto"><div id="catalog_magnet"><div class="magnet_item"><a class="magnet_link" href="https://concznest.cc/categories/模型算法/"><div class="magnet_link_context" style=""><span style="font-weight:500;flex:1">📚 模型算法 (2)</span><span style="padding:0px 4px;border-radius: 8px;"><i class="fas fa-arrow-circle-right"></i></span></div></a></div><div class="magnet_item"><a class="magnet_link" href="https://concznest.cc/categories/加速算法/"><div class="magnet_link_context" style=""><span style="font-weight:500;flex:1">🎮 加速算法 (1)</span><span style="padding:0px 4px;border-radius: 8px;"><i class="fas fa-arrow-circle-right"></i></span></div></a></div><div class="magnet_item"><a class="magnet_link" href="https://concznest.cc/categories/芯片设计/"><div class="magnet_link_context" style=""><span style="font-weight:500;flex:1">🐱‍👓 芯片设计 (8)</span><span style="padding:0px 4px;border-radius: 8px;"><i class="fas fa-arrow-circle-right"></i></span></div></a></div><div class="magnet_item"><a class="magnet_link" href="https://concznest.cc/categories/技术栈/"><div class="magnet_link_context" style=""><span style="font-weight:500;flex:1">👩‍💻 技术栈 (1)</span><span style="padding:0px 4px;border-radius: 8px;"><i class="fas fa-arrow-circle-right"></i></span></div></a></div><div class="magnet_item"><a class="magnet_link" href="https://concznest.cc/categories/心得随笔/"><div class="magnet_link_context" style=""><span style="font-weight:500;flex:1">📒 心得随笔 (1)</span><span style="padding:0px 4px;border-radius: 8px;"><i class="fas fa-arrow-circle-right"></i></span></div></a></div><div class="magnet_item" style="visibility: hidden"></div><a class="magnet_link_more"  href="https://concznest.cc/categories" style="flex:1;text-align: center;margin-bottom: 10px;">查看更多...</a></div></div>';
+    console.log('已挂载magnet')
+    parent.insertAdjacentHTML("afterbegin",child)}
+     </script><style>#catalog_magnet{flex-wrap: wrap;display: flex;width:100%;justify-content:space-between;padding: 10px 10px 0 10px;align-content: flex-start;}.magnet_item{flex-basis: calc(50% - 5px);background: #f2f2f2;margin-bottom: 10px;border-radius: 8px;transition: all 0.2s ease-in-out;}.magnet_item:hover{background: #b30070}.magnet_link_more{color:#555}.magnet_link{color:black}.magnet_link:hover{color:white}@media screen and (max-width: 600px) {.magnet_item {flex-basis: 100%;}}.magnet_link_context{display:flex;padding: 10px;font-size:16px;transition: all 0.2s ease-in-out;}.magnet_link_context:hover{padding: 10px 20px;}</style>
+    <style></style><script async src="//at.alicdn.com/t/font_2032782_8d5kxvn09md.js"></script><!-- hexo injector body_end end --></body></html>

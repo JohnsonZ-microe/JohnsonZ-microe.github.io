@@ -1,0 +1,1123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<search> 
+  
+  
+    
+    <entry>
+      <title>多电压域设计中power stripe与power rail延长线的设置</title>
+      <link href="/2025/05/13/%E5%A4%9A%E7%94%B5%E5%8E%8B%E5%9F%9F%E8%AE%BE%E8%AE%A1%E4%B8%ADpower-stripe%E4%B8%8Epower-rail%E5%BB%B6%E9%95%BF%E7%BA%BF%E7%9A%84%E8%AE%BE%E7%BD%AE/"/>
+      <url>/2025/05/13/%E5%A4%9A%E7%94%B5%E5%8E%8B%E5%9F%9F%E8%AE%BE%E8%AE%A1%E4%B8%ADpower-stripe%E4%B8%8Epower-rail%E5%BB%B6%E9%95%BF%E7%BA%BF%E7%9A%84%E8%AE%BE%E7%BD%AE/</url>
+      
+        <content type="html"><![CDATA[<h1 id="多电压域设计中power-stripe与power-rail延长线的设置"><a href="#多电压域设计中power-stripe与power-rail延长线的设置" class="headerlink" title="多电压域设计中power stripe与power rail延长线的设置"></a>多电压域设计中power stripe与power rail延长线的设置</h1><p>选中FFT电压域，在Stripe boundry上面选择Each selected block/domain/fence，便可以对该电压域打上power stripe。</p><p><img src="2025-05-13T171321.png" alt="2025-05-13T171321"></p><p>如果不做任何处理，由下图可见，图中的红色区域为FFT电压域，该电压域的power stripe本应延长到block ring上，但它们截止在了电压域的边界。</p><p><img src="2025-05-13T171413.png" alt="2025-05-13T171413"></p><p>可以在Add Stripes中选择Mode，并选择Extend to closest target，重新添加Stripes，即可解决这个问题。<br><img src="2025-05-13T171828.png" alt="2025-05-13T171828"><br><img src="2025-05-13T172500.png" alt="2025-05-13T172500"></p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>Digital as a top流程</title>
+      <link href="/2025/04/23/Digital-as-a-top%E6%B5%81%E7%A8%8B/"/>
+      <url>/2025/04/23/Digital-as-a-top%E6%B5%81%E7%A8%8B/</url>
+      
+        <content type="html"><![CDATA[<h1 id="Digital-as-a-top流程"><a href="#Digital-as-a-top流程" class="headerlink" title="Digital as a top流程"></a>Digital as a top流程</h1><h2 id="编写-lib文件"><a href="#编写-lib文件" class="headerlink" title="编写.lib文件"></a>编写.lib文件</h2><p>input pin的timing constraint如下图所示：<br><img src="2025-04-23T150846.png" alt="2025-04-23T150846"></p><p>其含义为，当遇到CLKA上升沿时，</p><p>output pin constraint<br><img src="2025-04-23T151046.png" alt="2025-04-23T151046"></p><p>这里input delay包含setup与hold两类timing check。以setup time check 0.099为例，信号变化需要至少在clock上升沿之前0.099ns。同理以hold time check 0.072为例，信号变化需要至少在clock上升沿之后0.072ns。</p><p><img src="2025-04-23T160754.png" alt="2025-04-23T160754"></p><p>output delay的含义为<br><img src="2025-04-23T160820.png" alt="2025-04-23T160820"></p><p>output delay设置需要包含路径延迟以及外部寄存器的setup time requirements。</p><h3 id="什么是时序弧的unateness"><a href="#什么是时序弧的unateness" class="headerlink" title="什么是时序弧的unateness?"></a>什么是时序弧的unateness?</h3><p>在编写.lib文件时，遇到timing_sense的条目。在TSMC SRAM的输出pin QA的定义中，timing_sense设置为non_unate，这是什么意思呢？<br><img src="2025-04-24T164016.png" alt="2025-04-24T164016"></p><p>unateness主要用于回答这个问题：<br>如果input发生了变化（比如input置为1），该output会发生什么行为？（output置1？置0？还是保持原值？）</p><p>我们将output可能的行为分为以下三类：</p><ol><li>Positive Unate: Input置为1后，Output也置1或者保持。Input置为0后，Output也置0或者保持。E.g. Buffer, 与门，或门。</li><li>Negative Unate: Input置为1后，Output置0或者保持。Input置为0后，Output置1或者保持。E.g. 非门。</li><li>Non-Unate: Output的行为与input的行为无关。</li></ol><p>对于SRAM的输出，Output取决于SRAM中储存的值，所以直接设置为non-unate即可。</p><h2 id="Merge-GDS之后需要注意的点"><a href="#Merge-GDS之后需要注意的点" class="headerlink" title="Merge GDS之后需要注意的点"></a>Merge GDS之后需要注意的点</h2><p>为了防止merge之后有DRC rule的报错，现在将PR中各个阶段的check list记录如下：</p><ol><li><p>Floorplan阶段，所有的hard macro和block需要打Halo，并在边界上打上针对性的RouteBlockage。所谓针对性的RouteBlockage即防止在hard macro的边界附近，外部走线与内部走线存在距离的问题。在我参与的第四次流片任务DigitalBridge芯片的设计中，我们的Compute-In-memory模块在边界上存在非常粗的M3与M4金属，而外部走线会忽略这些边界上金属的存在，从而使得在streamout之后，边界上的M3和M4走线报出大量DRC金属边界的错误。</p></li><li><p>打Stripe的时候，可以选择让stripe merge with ring，防止power stripe与power ring重叠之后，Via产生冲突。Powerplan结束后，尽量清理掉所有杂线，给后续routing留出空间的同时，也能避免很多潜在的DRC问题。</p></li><li><p>IO ring与core之间至少留出一定的距离（28nm HPC+工艺需至少留出25um的间距）</p></li></ol><h2 id="修复verify-drc后Metal-short的问题："><a href="#修复verify-drc后Metal-short的问题：" class="headerlink" title="修复verify_drc后Metal_short的问题："></a>修复verify_drc后Metal_short的问题：</h2><p>使用以下命令打印出所有metal short的net name<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dbget [dbget top.markers.subType Metal_short -p].objects.name</span><br></pre></td></tr></table></figure></p><p>如果short_nets 列表中出现 0x0，说明有些 marker 没有关联到 net（或者说 dbget 查询到了空对象），这种情况在实际 DRC 中是可能的，比如 marker 和某些 vias、shapes关联但没 net。<br>可以在list中使用lsearch语句：<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">set short_nets [lsearch -all -inline -not -exact $short_nets &quot;0x0&quot;]</span><br></pre></td></tr></table></figure></p><p>完整的script如下：<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">set short_nets &#123;&#125;</span><br><span class="line">foreach marker [dbget top.markers.subType Metal_short -p] &#123;</span><br><span class="line">    foreach net [dbget $marker.objects.objects.name] &#123;</span><br><span class="line">        lappend short_nets $net</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line">set short_nets [lsort -unique $short_nets]</span><br></pre></td></tr></table></figure></p><p>之后重新执行ecoRoute即可</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>VCS+Verdi仿真流程</title>
+      <link href="/2025/04/04/VCS-Verdi%E4%BB%BF%E7%9C%9F%E6%B5%81%E7%A8%8B/"/>
+      <url>/2025/04/04/VCS-Verdi%E4%BB%BF%E7%9C%9F%E6%B5%81%E7%A8%8B/</url>
+      
+        <content type="html"><![CDATA[<h1 id="VCS-Verdi仿真流程"><a href="#VCS-Verdi仿真流程" class="headerlink" title="VCS+Verdi仿真流程"></a>VCS+Verdi仿真流程</h1><p>vcs -v asic.v 在RTL中引用了一些module，如果从当前目录中找不到，就在asic.v中找。</p><p>vcs -y /usr/ 让vcs在目录中找module。在RTL中注明具体module的位置：<code>uselib directory = /usr/。在编译时，同时碰到-y和</code>uselib，以uselib为主。</p><p>vcs +libext+.vh+.v 在-y注明的文件夹中搜索.vh文件和.v作为module的来源。</p><p>vcs +incdir+”.”，在RTL中写了`include的话，用该选项指明路径。“-incdir”用在库文件中，用来声明逻辑库。比如在Designware的仿真文件中，存在下面的语句<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">`include &quot;DW_div_function.inc&quot;</span><br></pre></td></tr></table></figure><br>在VCS makefile中加入以下语句：<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">VCS_OPTS += +incdir+/softs/synopsys/dc/2022.03/dw/sim_ver</span><br><span class="line">VCS_OPTS += -y /softs/synopsys/dc/2022.03/dw/sim_ver +libext+.v+.inc</span><br></pre></td></tr></table></figure><br>即可在vcs中使用Designware的ip进行仿真</p><h3 id="Dump-file无法显示二位数组"><a href="#Dump-file无法显示二位数组" class="headerlink" title="Dump file无法显示二位数组"></a>Dump file无法显示二位数组</h3><p>只需要在$fsdbDumpvars中加入‘+mda’选项即可。<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">initial begin</span><br><span class="line">$fsdbDumpfile(&quot;./base_fun/wave/fifo_tb.fsdb&quot;);</span><br><span class="line">$fsdbDumpvars(0, fifo_tb, &quot;+mda&quot;);</span><br><span class="line">end</span><br></pre></td></tr></table></figure></p><h2 id="Verdi快捷用法"><a href="#Verdi快捷用法" class="headerlink" title="Verdi快捷用法"></a>Verdi快捷用法</h2><p>L: 重新加载波形<br>f: Zoom All，将波形全部进行显示<br>z Zoom Out波形缩小，一般配合鼠标放大非常方便<br>Z Zoom In 波形放大<br>Ctrl+Right Arrow 向右移动半屏<br>Ctrl+Left Arrow 向左移动半屏<br>n next, Search Forward选定信号按指定的值（上升沿，下降沿，both,指定Value）向前跳转<br>N 与n功能相同，方向向后<br>y Keep Cursor at Centor（开关）移至中央并保持居中，再按取消固定居中</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>SRAM verilog behavior model写法</title>
+      <link href="/2025/03/19/SRAM-verilog-behavior-model%E5%86%99%E6%B3%95/"/>
+      <url>/2025/03/19/SRAM-verilog-behavior-model%E5%86%99%E6%B3%95/</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>VLSI2024-功耗事件监测的TinyML SoC</title>
+      <link href="/2025/01/03/VLSI2024-%E5%8A%9F%E8%80%97%E4%BA%8B%E4%BB%B6%E7%9B%91%E6%B5%8B%E7%9A%84TinyML-SoC/"/>
+      <url>/2025/01/03/VLSI2024-%E5%8A%9F%E8%80%97%E4%BA%8B%E4%BB%B6%E7%9B%91%E6%B5%8B%E7%9A%84TinyML-SoC/</url>
+      
+        <content type="html"><![CDATA[<h1 id="A-Heterogeneous-TinyML-SoC-with-Energy-Event-Performance-Aware-Management-and-Compute-in-Memory-Two-Stage-Event-Driven-Wakeup"><a href="#A-Heterogeneous-TinyML-SoC-with-Energy-Event-Performance-Aware-Management-and-Compute-in-Memory-Two-Stage-Event-Driven-Wakeup" class="headerlink" title="A Heterogeneous TinyML SoC with Energy-Event-Performance-Aware  Management and Compute-in-Memory Two-Stage Event-Driven Wakeup"></a>A Heterogeneous TinyML SoC with Energy-Event-Performance-Aware  Management and Compute-in-Memory Two-Stage Event-Driven Wakeup</h1><p>对各个异构的模块进行最低能耗点minimum energy point（MEP）搜索。</p><img src="/2025/01/03/VLSI2024-%E5%8A%9F%E8%80%97%E4%BA%8B%E4%BB%B6%E7%9B%91%E6%B5%8B%E7%9A%84TinyML-SoC/2025-01-03-11-19-59.png" class=""><p>从上图可见，整个系统架构包含always-on的Cortex-M0 CPU与DNN accelerator用于进行KWS的inference。In-house DSP用于进行声音信号的处理以及一个Cortex-M4 CPU用于进行回声消除。ULL SRAM用于存储always-on模块所必须的数据。</p><p>它们设计的Energy-Event-Performance-Aware Manage可用于实时监测系统功耗。根据检测到的电压，运行时间以及关键信号toggle数目来估测整个系统的功耗，准确率大于95%。<br><img src="/2025/01/03/VLSI2024-%E5%8A%9F%E8%80%97%E4%BA%8B%E4%BB%B6%E7%9B%91%E6%B5%8B%E7%9A%84TinyML-SoC/2025-01-03-12-46-43.png" class=""></p><p>该工作的hierarchical voltage regulation由一个全局的switched capacitor voltage regulator (SCVR)来产生1.2V，0.9V与0.6V的电压。<br>细粒度的电压调整步长为15mV。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>CVPR2024 异质联邦学习中从server到client的高效知识传输模式</title>
+      <link href="/2024/12/20/CVPR2024-%E5%BC%82%E8%B4%A8%E8%81%94%E9%82%A6%E5%AD%A6%E4%B9%A0%E4%B8%AD%E4%BB%8Eserver%E5%88%B0client%E7%9A%84%E9%AB%98%E6%95%88%E7%9F%A5%E8%AF%86%E4%BC%A0%E8%BE%93%E6%A8%A1%E5%BC%8F/"/>
+      <url>/2024/12/20/CVPR2024-%E5%BC%82%E8%B4%A8%E8%81%94%E9%82%A6%E5%AD%A6%E4%B9%A0%E4%B8%AD%E4%BB%8Eserver%E5%88%B0client%E7%9A%84%E9%AB%98%E6%95%88%E7%9F%A5%E8%AF%86%E4%BC%A0%E8%BE%93%E6%A8%A1%E5%BC%8F/</url>
+      
+        <content type="html"><![CDATA[<h2 id="An-Upload-Efficient-Scheme-for-Transferring-Knowledge-From-a-Server-side-Pre-trained-Generator-to-Clients-in-Heterogeneous-Federated-Learning"><a href="#An-Upload-Efficient-Scheme-for-Transferring-Knowledge-From-a-Server-side-Pre-trained-Generator-to-Clients-in-Heterogeneous-Federated-Learning" class="headerlink" title="An Upload-Efficient Scheme for Transferring Knowledge From a Server-side Pre-trained Generator to Clients in Heterogeneous Federated Learning"></a>An Upload-Efficient Scheme for Transferring Knowledge From a Server-side Pre-trained Generator to Clients in Heterogeneous Federated Learning</h2><p>作者来自上海交大</p><p>首先说一下<strong>联邦学习 (Federated Learning)</strong>的优势，以mobile device为训练核，直接从real world data训练，而不是从网上随便就能找到的proxy data进行训练。</p><p>异质联邦学习(heterogenous Federated Learning)中，每一个client都拥有不同的网络结构，甚至于执行不同的任务。怎样在这些不同的client之间进行knowledge sharing成为了一个巨大的挑战。<br>作者遍提出了一个upload-efficient knowledge transfer scheme ——  Federated Knowledge-Transfer Loop（FedKTL）。</p><p>Federated Learning发展脉络：</p><p>最早期：Traditional Federated Learning (tFL)，对包含server在内的所有client训练一个global model。这个时候，模型和数据都是异质的。数据的异质化导致client与client之间的performance存在较大的差异，这样的现象也被称为representation disparity。</p><p>Personalized Federated Learning (pFL)，可以针对每一个client训练自己定制化的模型。数据是异质的，但每个client模型却是同质的。这里<strong>同质</strong>指的是client的模型架构是相同的，不同的仅仅是模型参数而已。这样做存在的缺点是client与server之间的参数更新将会导致大量的传输损耗，而且client的模型参数不具有隐私性。</p><p>进一步地，Heterogeneous Federated Learning (HtFL)被提出，它对client的模型架构不作限制。但面临的挑战是，每一个client在进行知识分享时存在classifier bias，这样使得global knowledge存在偏差。</p><h2 id="训练federated-model很难用一个global-dataset"><a href="#训练federated-model很难用一个global-dataset" class="headerlink" title="训练federated model很难用一个global dataset"></a>训练federated model很难用一个global dataset</h2><p>因为每一个client面临的任务不一样，开发这样的数据集完全是吃力不讨好的，因为只要client面对的问题一变，那么就需要重新创造一个数据集，不会有人费这个心力去做的。</p><p>所以HtFL的训练方式是，用一个pre-trained的生成器来产生在一个邻域内的unlabled data。</p><h2 id="问：什么是global-auxiliary-model？"><a href="#问：什么是global-auxiliary-model？" class="headerlink" title="问：什么是global auxiliary model？"></a>问：什么是global auxiliary model？</h2><p>用一个辅助的全局模型(auxiliary global model)对client model进行知识蒸馏。</p><p>缺点：server与client之间巨大的通信开销</p><h2 id="问：什么是global-class-wise-prototypes"><a href="#问：什么是global-class-wise-prototypes" class="headerlink" title="问：什么是global class-wise prototypes?"></a>问：什么是global class-wise prototypes?</h2><p>缺点：biased prototype</p><p>FedKTL</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>ISAMSR论文整理</title>
+      <link href="/2024/12/20/ISAMSR%E8%AE%BA%E6%96%87%E6%95%B4%E7%90%86/"/>
+      <url>/2024/12/20/ISAMSR%E8%AE%BA%E6%96%87%E6%95%B4%E7%90%86/</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>2024HPCA——BeaconGNN</title>
+      <link href="/2024/12/18/2024HPCA%E2%80%94%E2%80%94BeaconGNN/"/>
+      <url>/2024/12/18/2024HPCA%E2%80%94%E2%80%94BeaconGNN/</url>
+      
+        <content type="html"><![CDATA[<h1 id="BeaconGNN-Large-Scale-GNN-Acceleration-with-Out-of-Order-Streaming-In-Storage-Computing"><a href="#BeaconGNN-Large-Scale-GNN-Acceleration-with-Out-of-Order-Streaming-In-Storage-Computing" class="headerlink" title="BeaconGNN: Large-Scale GNN Acceleration with Out-of-Order Streaming In-Storage Computing"></a>BeaconGNN: Large-Scale GNN Acceleration with Out-of-Order Streaming In-Storage Computing</h1><p>该篇文章由UCLA与北京大学联合发表，主要介绍了一种名为 BeaconGNN 的新型计算架构设计，旨在加速大规模图神经网络（GNN）的处理。该设计利用存内计算（In-storage Computing, ISC），并针对 GNN 的特定需求进行了优化，以提高吞吐量和能效，也是从三个层面优化I/O access：controller，channel和die。</p><h3 id="研究背景"><a href="#研究背景" class="headerlink" title="研究背景"></a>研究背景</h3><p>图神经网络（GNN）在复杂关系和依赖性分析中表现出色，但数据准备阶段（如图采样和特征表查询）会导致大量数据在存储和处理器之间传输，带来巨大 I/O 带宽压力。<br>现有的 ISC 解决方案在处理 GNN 任务时存在一些问题，如严格顺序的邻居采样、与闪存访问粒度不匹配的 I/O 请求大小以及依赖固件处理导致的 I/O 限制。</p><h3 id="研究目标"><a href="#研究目标" class="headerlink" title="研究目标"></a>研究目标</h3><p>提出一种能充分利用闪存内部并行性的 ISC 设计，以支持大规模 GNN 的数据结构和特征表。<br>解决现有 ISC 设计在处理 GNN 时的性能瓶颈，如多跳邻居采样的低效性、小且随机的 I/O 模式与闪存页级传输的不匹配，以及固件处理 I/O 请求的效率低下。</p><h3 id="设计方案"><a href="#设计方案" class="headerlink" title="设计方案"></a>设计方案</h3><p>DirectGraph：一种新的 GNN 图格式，直接使用闪存物理地址进行索引，消除多级地址转换，允许无序的邻居采样，提高闪存资源利用率。<br>多级近数据处理引擎：在闪存控制器、通道和芯片级别部署处理引擎，减少数据传输，提高 I/O 效率。<br>空间加速器：附加在设备总线上，用于加速 GNN 计算阶段的嵌入聚合和更新操作。</p><h3 id="系统架构"><a href="#系统架构" class="headerlink" title="系统架构"></a>系统架构</h3><p>BeaconGNN-2.0：在软件和硬件协同设计的基础上，通过 DirectGraph 和多级近数据处理引擎，优化了整个 GNN 任务流程。<br>三级架构：<br>闪存芯片级采样器：进行邻居采样和特征向量检索，仅返回有用数据，减少通道传输。<br>闪存通道级命令路由器：在后台芯片间直接通信，无需闪存固件参与。<br>空间加速器：附加在设备总线上，用于加速 GNN 计算。</p><h3 id="创新点与优势"><a href="#创新点与优势" class="headerlink" title="创新点与优势"></a>创新点与优势</h3><p>DirectGraph 格式：消除了多级地址转换，支持无序的邻居采样，提高了闪存资源利用率。<br>三级架构处理引擎：专门针对 GNN 的小随机 I/O 模式进行优化，利用超低延迟闪存（ULL-flash）的特性，减少数据准备阶段的延迟。<br>定制硬件处理闪存 I/O：通过硬件实现闪存命令的路由和处理，提高了 I/O 吞吐量，释放了闪存的高带宽潜力。</p><h3 id="性能评估"><a href="#性能评估" class="headerlink" title="性能评估"></a>性能评估</h3><p>性能提升：相较于现有的 ISC 设计，BeaconGNN 在吞吐量上提高了 11.6 倍，能效提高了 4 倍。<br>实验设置：通过模拟六个 GNN 加速系统，使用真实的大规模 GNN 数据集进行评估，涵盖了不同的工作负载和配置。<br>实验结果：在多个数据集上，BeaconGNN-2.0 显示出显著的性能提升，尤其是在利用闪存资源和减少数据准备时间方面。</p><h3 id="结论"><a href="#结论" class="headerlink" title="结论"></a>结论</h3><p>文章提出，BeaconGNN 是一种针对大规模 GNN 加速的新型 ISC 设计，通过创新的 DirectGraph 格式和多级近数据处理引擎，解决了现有 ISC 在 GNN 加速中的性能瓶颈问题，显著提高了吞吐量和能效，展示了在 GNN 计算领域应用的潜力。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>Diffusion model on the edge</title>
+      <link href="/2024/12/15/Diffusion-model-on-the-edge/"/>
+      <url>/2024/12/15/Diffusion-model-on-the-edge/</url>
+      
+        <content type="html"><![CDATA[<h3 id="ACCV2024-G-Kim-etc-Diffusion-Model-Compression-for-Image-to-Image-Translation"><a href="#ACCV2024-G-Kim-etc-Diffusion-Model-Compression-for-Image-to-Image-Translation" class="headerlink" title="ACCV2024 G. Kim etc. Diffusion Model Compression for Image-to-Image Translation"></a>ACCV2024 G. Kim etc. Diffusion Model Compression for Image-to-Image Translation</h3><p>提到压缩模型的办法主要可以分为：1. 减少denoising iteration的次数    2. 降低<strong>model footprint</strong></p><p>这里的<strong>model footprint</strong>作何解释？<br>后文提到：<br>larger models demand larger GPU and more computation during inference, limit deployment on smaller computation platforms, and substantially increase the carbon footprint.<br>故这里的model footprint主要的意思是模型运行的开销。</p><h3 id="CVPR2024-DeepCache"><a href="#CVPR2024-DeepCache" class="headerlink" title="CVPR2024: DeepCache"></a>CVPR2024: DeepCache</h3><p>目标：在去噪过程中的每一步中减少模型的大小。之前的work涉及到对模型的重新训练，会让整个压缩过程开销较高。</p><p>利用了去噪过程中模型深层特征的相似性，通过缓存（Cache）来避免重新计算网络中的深层特征，仅计算网络的浅层，从而减少计算量。</p><img src="/2024/12/15/Diffusion-model-on-the-edge/2024-12-18-14-31-09.png" class=""><p>在U-Net的数据流中，包含一个High-level feature的分支与一个Low-level feature的分支。其中High-level feature的分支被称为<em>main branch</em>，Low-level feature的分支被称为<em>skip branch</em>。<em>main branch</em>将图片通过连续几级的降采样编码为高维的特征图，之后再经过连续几级的升采样还原为低维。而<em>skip branch</em>则直接从降采样过程中产生的Low-level feature直接与升采样过程中产生的feature进行拼接，下图的灰色箭头显示了这一过程。<br><img src="/2024/12/15/Diffusion-model-on-the-edge/2024-12-18-14-44-32.png" class=""></p><p>利用特性：<br>（1）相邻的time step中包含巨大的similarity。<br>（2）其中的一些time step与相邻的很多time step都有巨大的similarity。</p><img src="/2024/12/15/Diffusion-model-on-the-edge/2024-12-18-15-49-45.png" class=""><p>上图展示了DeepCache的过程，其再t-1时刻略去了生成高维特征所需的<em>main branch</em>，仅仅对低维特征进行update。图中的$U_1$特征将会在cache中存储较长的time step。每过N个time step更新一次cache中的$U_1$特征，这被作者称为1:N inference。</p><p>对CIFAR-10数据集的生成实验，其将MAC数从6.1G降低到2.63G，FID score从4.16升高到了9.74。</p><p>从另一个角度看，DeepCache可以视为在原有$K$步去噪过程中，额外添加了$(N-1)\times K$步的对low-level feature的去噪。作者随后讨论了缓存的feature对于整个diffusion model的重要性。<br><img src="/2024/12/15/Diffusion-model-on-the-edge/2024-12-18-16-36-27.png" class=""><br>以生成Cifar10图片的模型为例，如果把缓存的feature map全部替换为0值矩阵，FID从9.74直接攀升到了192.98。而如果保留50个step的full model inference，额外添加的shallow network inference可以使DDIM的FID从4.67降低到4.35。<br><img src="/2024/12/15/Diffusion-model-on-the-edge/2024-12-18-16-41-57.png" class=""></p><p>$\bigtriangleup DIT$</p><img src="/2024/12/15/Diffusion-model-on-the-edge/2024-12-18-17-00-11.png" class=""><h3 id="NeurIPS-2024-DiTFastAttn"><a href="#NeurIPS-2024-DiTFastAttn" class="headerlink" title="NeurIPS 2024: DiTFastAttn"></a>NeurIPS 2024: DiTFastAttn</h3><p>目的：自注意力的二次方复杂性会带来计算挑战。之前的work主要集中在设计注意力机制或网络结构上，虽然可以有效降低计算成本，但是这些方法需要大量的再训练成本。训练DiT需要大量的数据和计算，因此需要post-training compression方法。</p><p><strong>训练后压缩：</strong></p><p>DiT推理过程中注意力计算的三个关键冗余：</p><ol><li><p>Spatial Redundancy，许多注意力头专注于局部信息；</p></li><li><p>Temporal Redundancy，相邻步骤的注意力输出之间具有高度相似性；</p></li><li><p>Conditional Redundancy， 条件和无条件inference具有显著相似性。(在前向传播过程中，CFG会进行两次前向传播，一次是使用条件输入的推理，一次是不使用条件输入的推理)</p></li></ol><p>为了解决这些冗余提出了三种技术：</p><ol><li>带有残差缓存的窗口注意力，来减少空间冗余；<strong>在第一个步骤中缓存完整的注意力和window attention输出之间的残差，在后续的几个steps中重用该残差。</strong></li><li>跨时间步的注意力共享，来利用步骤之间的相似性；</li><li>跨CFG（classifie-free guidance）进行注意力共享，来跳过条件生成期间的冗余计算。</li></ol><img src="/2024/12/15/Diffusion-model-on-the-edge/2024-12-18-21-51-56.png" class=""><p>DiTFastAttn提供了一种独立于使用特定的量化位宽、调度程序和时间步长的补充解决方案。</p><p><strong>不同层在不同时间步长具有不同的冗余度</strong>：每个步骤的每一层应用哪些技术很重要。</p><p>作者使用的是贪婪算法，来看在哪里使用什么技术。</p><p>对于DiT模型，AST和ASC在早期的时间步中使用，完全注意力主要出现在初始注意力层中。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>DAC2024_11_HybLearn</title>
+      <link href="/2024/12/05/DAC2024-11-HybLearn/"/>
+      <url>/2024/12/05/DAC2024-11-HybLearn/</url>
+      
+        <content type="html"><![CDATA[<img src="/2024/12/05/DAC2024-11-HybLearn/2024-12-05-14-54-41.png" class="">]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>浮点数处理技术</title>
+      <link href="/2024/10/24/%E6%B5%AE%E7%82%B9%E6%95%B0%E5%A4%84%E7%90%86%E6%8A%80%E6%9C%AF/"/>
+      <url>/2024/10/24/%E6%B5%AE%E7%82%B9%E6%95%B0%E5%A4%84%E7%90%86%E6%8A%80%E6%9C%AF/</url>
+      
+        <content type="html"><![CDATA[<h1 id="浮点数处理技术"><a href="#浮点数处理技术" class="headerlink" title="浮点数处理技术"></a>浮点数处理技术</h1><h3 id="当mantissa为0-exponents不为0时，浮点数表示什么？"><a href="#当mantissa为0-exponents不为0时，浮点数表示什么？" class="headerlink" title="当mantissa为0, exponents不为0时，浮点数表示什么？"></a>当mantissa为0, exponents不为0时，浮点数表示什么？</h3><p>Status信号通常用于表示运算过程中的状态或异常情况</p><img src="/2024/10/24/%E6%B5%AE%E7%82%B9%E6%95%B0%E5%A4%84%E7%90%86%E6%8A%80%E6%9C%AF/2024-11-26-17-13-16.png" class=""><p>具体解释如下<br>| Bit 名称       | 含义解释                                                                    |<br>| —————— | ———————————————————————————————————- |<br>| <strong>zero</strong>     | <strong>结果为零</strong>。表示浮点运算结果是精确的 ±0，可能是因为下溢、抵消或特定计算结果。<br>例如：<code>1e-200 * 1e-200 → 0</code> |<br>| <strong>Infinity</strong> | <strong>结果为正无穷或负无穷</strong>。通常是除以零或溢出导致的。例如：<code>1.0 / 0.0 → ∞</code>，或某些过大的乘法结果               |<br>| <strong>Invalid</strong>  | <strong>无效操作</strong>。表示非法的浮点操作，如 <code>0/0</code>、<code>∞ - ∞</code>、<code>sqrt(-1)</code>，或 <code>NaN</code> 传播等               |<br>| <strong>Tiny</strong>     | <strong>下溢（subnormal）</strong>。表示运算结果非常接近于零，精度不够而进入非正规数范围（denormal/subnormal），但不等于0。 |<br>| <strong>Huge</strong>     | <strong>上溢（overflow）</strong>。结果过大超出浮点数表示范围，常与 <code>Infinity</code> 一起标记                       |<br>| <strong>Inexact</strong>  | <strong>结果不精确</strong>。发生了<strong>舍入</strong>，即实际结果不能精确表示为有限精度浮点数时设此位。几乎所有浮点运算都会触发此位              |<br>| <strong>HugeInt</strong>  | <strong>结果非常大的整数</strong>。该标志通常在浮点转整数的过程中使用，例如将一个极大浮点数转换为整数时超出表示范围或达到极值。             |</p><p>该信号一般在CPU/FPU中用于异常控制，如：<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">always @(posedge clk) begin</span><br><span class="line">  if (status[2]) begin</span><br><span class="line">    // 触发无效操作异常处理</span><br><span class="line">    raise_exception(INVALID_OP);</span><br><span class="line">  end</span><br><span class="line">end</span><br></pre></td></tr></table></figure></p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>你只需要加法——用整数加法运算逼近浮点数乘法</title>
+      <link href="/2024/10/17/%E4%BD%A0%E5%8F%AA%E9%9C%80%E8%A6%81%E5%8A%A0%E6%B3%95%E2%80%94%E2%80%94%E7%94%A8%E6%95%B4%E6%95%B0%E5%8A%A0%E6%B3%95%E8%BF%90%E7%AE%97%E9%80%BC%E8%BF%91%E6%B5%AE%E7%82%B9%E6%95%B0%E4%B9%98%E6%B3%95/"/>
+      <url>/2024/10/17/%E4%BD%A0%E5%8F%AA%E9%9C%80%E8%A6%81%E5%8A%A0%E6%B3%95%E2%80%94%E2%80%94%E7%94%A8%E6%95%B4%E6%95%B0%E5%8A%A0%E6%B3%95%E8%BF%90%E7%AE%97%E9%80%BC%E8%BF%91%E6%B5%AE%E7%82%B9%E6%95%B0%E4%B9%98%E6%B3%95/</url>
+      
+        <content type="html"><![CDATA[<h1 id="你只需要加法——用整数加法运算逼近浮点数乘法"><a href="#你只需要加法——用整数加法运算逼近浮点数乘法" class="headerlink" title="你只需要加法——用整数加法运算逼近浮点数乘法"></a>你只需要加法——用整数加法运算逼近浮点数乘法</h1><p>本文由加州的BitEnergy AI公司提出<br>文章名为：<br>Addition is All You Need for Energy-Efficient Language Models</p><p>首先抛出一个论点：<br>用Int32加法操作来预测Fp32浮点数操作仅仅消耗原来的2.7%的功耗。</p><p>作者的实验很有说服力，，把transformer-based LLMs中的乘法操作全部替换为L-Mul，几乎不产生精度损失。</p><p>其将标准的浮点数乘法：<br><img src="/2024/10/17/%E4%BD%A0%E5%8F%AA%E9%9C%80%E8%A6%81%E5%8A%A0%E6%B3%95%E2%80%94%E2%80%94%E7%94%A8%E6%95%B4%E6%95%B0%E5%8A%A0%E6%B3%95%E8%BF%90%E7%AE%97%E9%80%BC%E8%BF%91%E6%B5%AE%E7%82%B9%E6%95%B0%E4%B9%98%E6%B3%95/2024-10-17-22-53-59.png" class=""><br>替换为：<br><img src="/2024/10/17/%E4%BD%A0%E5%8F%AA%E9%9C%80%E8%A6%81%E5%8A%A0%E6%B3%95%E2%80%94%E2%80%94%E7%94%A8%E6%95%B4%E6%95%B0%E5%8A%A0%E6%B3%95%E8%BF%90%E7%AE%97%E9%80%BC%E8%BF%91%E6%B5%AE%E7%82%B9%E6%95%B0%E4%B9%98%E6%B3%95/2024-10-17-22-54-13.png" class=""></p><p>实际部署时，需要额外用于加l(m)的加法器，和处理偏置f1和f2的加法器。</p><img src="/2024/10/17/%E4%BD%A0%E5%8F%AA%E9%9C%80%E8%A6%81%E5%8A%A0%E6%B3%95%E2%80%94%E2%80%94%E7%94%A8%E6%95%B4%E6%95%B0%E5%8A%A0%E6%B3%95%E8%BF%90%E7%AE%97%E9%80%BC%E8%BF%91%E6%B5%AE%E7%82%B9%E6%95%B0%E4%B9%98%E6%B3%95/2024-10-17-23-10-32.png" class=""><h4 id="问：该方法和adderNet有什么区别"><a href="#问：该方法和adderNet有什么区别" class="headerlink" title="问：该方法和adderNet有什么区别"></a>问：该方法和adderNet有什么区别</h4>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>版图设计中的一些小tips</title>
+      <link href="/2024/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/"/>
+      <url>/2024/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/</url>
+      
+        <content type="html"><![CDATA[<h1 id="版图设计中的一些小tips"><a href="#版图设计中的一些小tips" class="headerlink" title="版图设计中的一些小tips"></a>版图设计中的一些小tips</h1><h4 id="Via-enclosure应该怎么画"><a href="#Via-enclosure应该怎么画" class="headerlink" title="Via enclosure应该怎么画"></a>Via enclosure应该怎么画</h4><p>以TSMC 28nm HPCPLUS为例：<br>常见的DRC报错为Mx.EN.2<strong>Mx.EN.3</strong>Mx.EN.14__Mx.EN.15:</p><p>相关的DRC rule列出如下：<br>Mx.EN.2：   Enclosure of square VIAx-1 [at least two opposite sides]        N $\geq$ 0.03<br>Mx.EN.3：   Enclosure of VIAx-1 [all sides]     P $\geq$ 0.02<br>Mx.EN.14：  Enclosure of square VIAx-1      M $\geq$ 0.01<br>Mx.EN.15：  Enclosure of square VIAx-1 [at least two opposite sides]      N $\geq$ 0.025</p><img src="/2024/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/2024-10-09-10-24-16.png" class=""><h4 id="cell无法复制的问题"><a href="#cell无法复制的问题" class="headerlink" title="cell无法复制的问题"></a>cell无法复制的问题</h4><p>一般是版图中包含markers导致复制不成功，删除掉marker即可。<br><img src="/2024/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/2024-10-09-11-25-00.png" class=""></p><h4 id="VIVA-Graph测量pulse-width快捷键"><a href="#VIVA-Graph测量pulse-width快捷键" class="headerlink" title="VIVA Graph测量pulse width快捷键"></a>VIVA Graph测量pulse width快捷键</h4><p>A:  添加sample点<br>D:  测量差距</p><h4 id="schematics中生成多个instance"><a href="#schematics中生成多个instance" class="headerlink" title="schematics中生成多个instance"></a>schematics中生成多个instance</h4><img src="/2024/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/2024-10-15-11-10-32.png" class="">]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>数字设计中的一些小tips</title>
+      <link href="/2024/10/05/%E6%95%B0%E5%AD%97%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/"/>
+      <url>/2024/10/05/%E6%95%B0%E5%AD%97%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/</url>
+      
+        <content type="html"><![CDATA[<h1 id="数字设计中的一些小tips"><a href="#数字设计中的一些小tips" class="headerlink" title="数字设计中的一些小tips"></a>数字设计中的一些小tips</h1><h2 id="CKMUX与MUX的区别在哪？"><a href="#CKMUX与MUX的区别在哪？" class="headerlink" title="CKMUX与MUX的区别在哪？"></a>CKMUX与MUX的区别在哪？</h2><p>CKMUX专门用于时钟信号的选通，以TSMC 28nm下CKMUX2D0BWP12T30P140器件为例，其具体参数如下：<br><img src="/2024/10/05/%E6%95%B0%E5%AD%97%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/2024-10-05-11-28-43.png" class=""><br>standard cell高度为1.2$\mu m$，器件宽度：0.98$\mu m$<br>average leakage power为4.7nW.</p><p>驱动一个小于$8.1fF$的负载时<br>从低电平到高电平：从端口I0到端口Z的Propagation Delay为：$0.017+3.290\times C<em>{load}$ ns.<br>相应的功耗为：$0.81+11\times C</em>{load}$ fJ.<br>从高电平到低电平：<br>Propagation Delay为：$0.0186+3.718\times C<em>{load}$ ns.<br>功耗为：$1.4+9.1\times C</em>{load}$ fJ.</p><p>对比MUX2D0BWP12T30P140器件：<br>standard cell高度为1.2$\mu m$，器件宽度：0.98$\mu m$<br>average leakage power为4.7nW.</p><p>驱动一个小于$1.21fF$的负载时<br>从低电平到高电平：从端口I0到端口Z的Propagation Delay为：$0.018+3.406\times C<em>{load}$ ns.<br>相应的功耗为：$0.75+8.7\times C</em>{load}$ fJ.<br>然而从高电平到低电平：<br>Propagation Delay为：$0.018+3.406\times C<em>{load}$ ns.<br>功耗为：$1.2+8.9\times C</em>{load}$ fJ.</p><p>从数值上好像看不出区别…</p><h2 id="Virtuoso-layout调整snap-spacing"><a href="#Virtuoso-layout调整snap-spacing" class="headerlink" title="Virtuoso layout调整snap spacing"></a>Virtuoso layout调整snap spacing</h2><p>快接键e，之后修改grid control<br><img src="/2024/10/05/%E6%95%B0%E5%AD%97%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/2024-10-07-11-42-09.png" class=""></p>]]></content>
+      
+      
+      
+        <tags>
+            
+            <tag> 数字加速器 </tag>
+            
+            <tag> 芯片设计 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>ISSCC2024_302_SNN存内计算与time_step_first数据流</title>
+      <link href="/2024/09/25/ISSCC2024-302-SNN%E5%AD%98%E5%86%85%E8%AE%A1%E7%AE%97%E4%B8%8Etime-step-first%E6%95%B0%E6%8D%AE%E6%B5%81/"/>
+      <url>/2024/09/25/ISSCC2024-302-SNN%E5%AD%98%E5%86%85%E8%AE%A1%E7%AE%97%E4%B8%8Etime-step-first%E6%95%B0%E6%8D%AE%E6%B5%81/</url>
+      
+        <content type="html"><![CDATA[<h1 id="ISSCC2024-30-2-SSN-存内计算与time-step-first数据流"><a href="#ISSCC2024-30-2-SSN-存内计算与time-step-first数据流" class="headerlink" title="ISSCC2024 30.2 SSN,存内计算与time step first数据流"></a>ISSCC2024 30.2 SSN,存内计算与time step first数据流</h1><p>提出的Comprehensively Data-Stationary（CDS）包含四个sparsity-aware IMC核。他们的sparsity-aware核可以根据input spike sparsity动态地调整功耗和计算时间。第三个创新点为multi-level clock gating与异步时序电路协议——用于减少dark silicon的功耗。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>反向传播需要的内存统计</title>
+      <link href="/2024/09/23/%E5%8F%8D%E5%90%91%E4%BC%A0%E6%92%AD%E9%9C%80%E8%A6%81%E7%9A%84%E5%86%85%E5%AD%98%E7%BB%9F%E8%AE%A1/"/>
+      <url>/2024/09/23/%E5%8F%8D%E5%90%91%E4%BC%A0%E6%92%AD%E9%9C%80%E8%A6%81%E7%9A%84%E5%86%85%E5%AD%98%E7%BB%9F%E8%AE%A1/</url>
+      
+        <content type="html"><![CDATA[<h1 id="反向传播需要的内存统计"><a href="#反向传播需要的内存统计" class="headerlink" title="反向传播需要的内存统计"></a>反向传播需要的内存统计</h1><p>考虑三层的全连接层：<br><img src="/2024/09/23/%E5%8F%8D%E5%90%91%E4%BC%A0%E6%92%AD%E9%9C%80%E8%A6%81%E7%9A%84%E5%86%85%E5%AD%98%E7%BB%9F%E8%AE%A1/2024-09-23-21-33-47.png" class=""></p><p>输出节点数为$K$，输出$o^k=[o_1^k,o_2^k,o_3^k,…,o_k^k]$<br>倒数第二层节点数为$J$，输出为$o^J=[o_1^J,o_2^J,o_3^J,…,o_J^J]$<br>倒数第三层节点数为$I$，输出为$o^I=[o_1^I,o_2^I,o_3^I,…,o_I^I]$</p><p>$t_1$到$t_K$为真实标签。</p><p>loss计算为$\delta=\sum \limits_{k}(o_k-t_k)^2$</p><p>之后取均方误差$L=\delta^2/2$</p><p>求导后得，因为$w_{jk}$只与$o_k$有关，所以上面的求和符号可以去掉。</p><script type="math/tex; mode=display">\frac{\partial L}{\partial w_{jk}}=(o_k-t_k)\frac{\partial o_k}{\partial w_{jk}}</script><p>代入$o_k=\sigma(z_k)$，Sigmoid函数的倒数为$\sigma’=\sigma(1-\sigma)$，最终可得</p><script type="math/tex; mode=display">    \frac{\partial L}{\partial w_{jk}}=(o_k-t_k)o_k(1-o_k)\cdot x_j</script>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>强化学习相关知识点梳理1</title>
+      <link href="/2024/09/21/%E5%BC%BA%E5%8C%96%E5%AD%A6%E4%B9%A0%E7%9B%B8%E5%85%B3%E7%9F%A5%E8%AF%86%E7%82%B9%E6%A2%B3%E7%90%861/"/>
+      <url>/2024/09/21/%E5%BC%BA%E5%8C%96%E5%AD%A6%E4%B9%A0%E7%9B%B8%E5%85%B3%E7%9F%A5%E8%AF%86%E7%82%B9%E6%A2%B3%E7%90%861/</url>
+      
+        <content type="html"><![CDATA[<h1 id="强化学习相关知识点梳理1"><a href="#强化学习相关知识点梳理1" class="headerlink" title="强化学习相关知识点梳理1"></a>强化学习相关知识点梳理1</h1><h2 id="马尔科夫链"><a href="#马尔科夫链" class="headerlink" title="马尔科夫链"></a>马尔科夫链</h2><img src="/2024/09/21/%E5%BC%BA%E5%8C%96%E5%AD%A6%E4%B9%A0%E7%9B%B8%E5%85%B3%E7%9F%A5%E8%AF%86%E7%82%B9%E6%A2%B3%E7%90%861/2024-09-21-14-25-08.png" class=""><p>三个重要元素：</p><ol><li>智能体在环境中，观察到状态<strong>S</strong>。</li><li>状态<strong>S</strong>被输入到智能体，智能体经过计算，选择动作<strong>A</strong>。</li><li>动作<strong>A</strong>使只能体进入下一个状态S，并返回奖励<strong>R</strong>给智能体。</li><li>智能体根据返回，调整自己的策略（policy）。策略一般用$\pmb{\pi}$表示。</li></ol><p>很多时候，我们不能单纯通过R来衡量一个动作的好坏，应该把未来的奖励也纳入决策。</p><p>举例：下棋的时候，弃子动作在当前奖励<strong>R</strong>非常低，但未来有可能获得更大的胜利。</p><p><strong>评估动作的价值</strong>，成为<strong>Q</strong>值，代表了智能体选择这个动作之后，一直到最终状态奖励综合的期望。</p><p><strong>评估状态的价值</strong>，成为<strong>V</strong>值，代表了智能体在这个状态下，一直到最终状态奖励综合的期望。</p><img src="/2024/09/21/%E5%BC%BA%E5%8C%96%E5%AD%A6%E4%B9%A0%E7%9B%B8%E5%85%B3%E7%9F%A5%E8%AF%86%E7%82%B9%E6%A2%B3%E7%90%861/2024-09-21-14-43-54.png" class=""><h2 id="时序差分学习-TD"><a href="#时序差分学习-TD" class="headerlink" title="时序差分学习(TD)"></a>时序差分学习(TD)</h2><h4 id="TD学习的原理应该怎样理解？"><a href="#TD学习的原理应该怎样理解？" class="headerlink" title="TD学习的原理应该怎样理解？"></a>TD学习的原理应该怎样理解？</h4><p>该部分知识来源于<a href="https://www.bilibili.com/video/BV1PB4y1q7Dv/?spm_id_from=333.337.search-card.all.click&amp;vd_source=bd0a4d03d6844f779cc2433f3ca7b4f6">https://www.bilibili.com/video/BV1PB4y1q7Dv/?spm_id_from=333.337.search-card.all.click&amp;vd_source=bd0a4d03d6844f779cc2433f3ca7b4f6</a></p><p>@bilibili:DragonistYJ</p><img src="/2024/09/21/%E5%BC%BA%E5%8C%96%E5%AD%A6%E4%B9%A0%E7%9B%B8%E5%85%B3%E7%9F%A5%E8%AF%86%E7%82%B9%E6%A2%B3%E7%90%861/2024-09-22-11-06-02.png" class=""><p>动作价值函数$Q_\pi(s_t, a_t)$是综合汇报$G_t$的条件期望。</p><script type="math/tex; mode=display">\begin{array}{lcl} Q_\pi(s_t, a_t)  = \mathbb{E}[U_t|s_t,a_t] \\ = \mathbb{E}[R_t|s_t,a_t] + \gamma \cdot \mathbb{E}[U_{t+1}|s_t,a_t] \\ = \mathbb{E}[R_t+\gamma \cdot Q_\pi(\textcolor{green}{S_{t+1}},\textcolor{red}{A_{t+1}})] \end{array}</script><p>注意这里大写的$\textcolor{green}{S<em>{t+1}}$与$\textcolor{red}{A</em>{t+1}}$以及$R<em>t$都是随机变量。可以用观测到的小写$\textcolor{green}{s</em>{t+1}}$与$\textcolor{red}{a_{t+1}}$代替，即有：</p><script type="math/tex; mode=display">Q_\pi(\textcolor{green}{S_{t+1}},\textcolor{red}{A_{t+1}}) \approx Q_\pi(\textcolor{green}{s_{t+1}},\textcolor{red}{a_{t+1}})   \\R_t \approx r_t</script><p>所以有</p><script type="math/tex; mode=display">\begin{array}{lcl} Q_\pi(\textcolor{green}{s_t}, \textcolor{red}{a_t})  \approx  r_t+\gamma \cdot Q_\pi(\textcolor{green}{s_{t+1}},\textcolor{red}{a_{t+1}}) \end{array}</script><p>将后一部分的表达式$r<em>t+\gamma \cdot Q</em>\pi(\textcolor{green}{s<em>{t+1}},\textcolor{red}{a</em>{t+1}}) $称为TD target $y_t$</p><script type="math/tex; mode=display">y_t = r_t+\gamma \cdot Q_\pi(\textcolor{green}{s_{t+1}},\textcolor{red}{a_{t+1}})</script><p>TD learning的核心就是让$Q<em>\pi(s_t, a_t)$尽可能去接近$y_t$，因为$y_t$部分基于真实的奖励，而$Q</em>\pi(s<em>t, a_t)$只是估计，所以我们认为$y_t$更加可靠。把$y_t$当作是观测到的值，把$y_t$固定住当成常数，改变动作价值函数$Q</em>\pi$，让它更接近$y_t$，这就是TD算法的核心概念。</p><p><strong>表格形式的SARSA算法：</strong></p><ol><li>每次观测到一个四元组$(\textcolor{green}{s<em>{t}},\textcolor{red}{a_t},\textcolor{blue}{r_t},\textcolor{green}{s</em>{t+1}})$，称为transition。</li><li>用策略函数采样$\textcolor{red}{a<em>{t+1}}\sim \pi(\cdot|s</em>{t+1})$，这里$\pi$称作<strong>策略函数policy function</strong>。</li><li>之后计算TD target $y<em>t=Q</em>\pi(\textcolor{green}{s<em>{t}},\textcolor{red}{a</em>{t}}) $<br>这里$Q<em>\pi(\textcolor{green}{s</em>{t}},\textcolor{red}{a<em>{t}})$是价值判断函数给$\textcolor{red}{a</em>{t}}$打的分数。</li></ol><p>这里$Q<em>pi$是一个表格，记录了每一个state对各个动作的打分。可以直接查表得到$Q</em>\pi(\textcolor{green}{s<em>{t+1}},\textcolor{red}{a</em>{t+1}})$的值，即可计算$y_t$<br><img src="/2024/09/21/%E5%BC%BA%E5%8C%96%E5%AD%A6%E4%B9%A0%E7%9B%B8%E5%85%B3%E7%9F%A5%E8%AF%86%E7%82%B9%E6%A2%B3%E7%90%861/2024-09-22-11-17-20.png" class=""></p><ol><li>另外也可以通过查表得到：$Q<em>\pi(\textcolor{green}{s</em>{t}},\textcolor{red}{a<em>{t}})$，从而计算TD error: $\delta_t=Q</em>\pi(\textcolor{green}{s<em>{t}},\textcolor{red}{a</em>{t}})-y_t$</li><li>最后更新动作价值函$Q<em>\pi(\textcolor{green}{s</em>{t}},\textcolor{red}{a_{t}})$</li></ol><script type="math/tex; mode=display">Q_\pi(\textcolor{green}{s_{t}},\textcolor{red}{a_{t}}) \leftarrow Q_\pi(\textcolor{green}{s_{t}},\textcolor{red}{a_{t}})-\alpha \cdot \delta_t</script><ol><li>把更新的$Q<em>\pi(\textcolor{green}{s</em>{t}},\textcolor{red}{a<em>{t}})$写入表格对应的位置。这样经过几轮学习，可以让$Q</em>\pi(\textcolor{green}{s<em>{t}},\textcolor{red}{a</em>{t}})$更加接近于$y_t$。</li></ol><h4 id="为什么要叫SARSA"><a href="#为什么要叫SARSA" class="headerlink" title="为什么要叫SARSA?"></a>为什么要叫SARSA?</h4><p>因为更新$Q<em>\pi$用到了$(\textcolor{green}{s</em>{t}},\textcolor{red}{a<em>{t}}, r_t, \textcolor{green}{s</em>{t+1}},\textcolor{red}{a_{t+1}})$</p><p>$\textcolor{green}{State},\textcolor{red}{Action}, Reward, \textcolor{green}{State},\textcolor{red}{Action} \rightarrow (\textcolor{green}{S}\textcolor{red}{A}R\textcolor{green}{S}\textcolor{red}{A})$</p><p><strong>神经网络形式的SARSA算法：</strong><br>可以用神经网络$q(\textcolor{green}{s},\textcolor{red}{a};\textbf{w})$来近似$Q_\pi(\textcolor{green}{s},\textcolor{red}{a})$</p><img src="/2024/09/21/%E5%BC%BA%E5%8C%96%E5%AD%A6%E4%B9%A0%E7%9B%B8%E5%85%B3%E7%9F%A5%E8%AF%86%E7%82%B9%E6%A2%B3%E7%90%861/2024-09-22-11-38-13.png" class=""><p>这个神经网络$q$被称为<strong>价值网络value network</strong>。<br>在actor-critic方法中，也被称作<strong>critic</strong>，用于评价actor的表现。我们要用观测到的奖励$R$来更新$\textbf{w}$。</p><p>此时TD target写为:</p><script type="math/tex; mode=display">y_t=r_t+\gamma \cdot q(\textcolor{green}{s_{t+1}},\textcolor{red}{a_{t+1}};\textbf{w})</script><p>TD error计算为:<br>$\delta<em>t=q(\textcolor{green}{s</em>{t}},\textcolor{red}{a_{t}};\textbf{w})-y_t$</p><p>loss计算为：$\delta_t^2/2$</p><p>之后用梯度下降法对$\textbf{w}$进行更新。</p><h4 id="Q-Learning算法"><a href="#Q-Learning算法" class="headerlink" title="Q-Learning算法"></a>Q-Learning算法</h4><p>也是一种TD算法，和SARSA直接学习动作价值函数$Q_\pi$不同，它学习的是<strong>最优动作价值函数optimal action-value function</strong> $Q^*$。Q-learning的TD target与SARSA很相似：</p><script type="math/tex; mode=display">y_t = r_t+\gamma \cdot \max\limits_{a} Q^*(s_{t+1},a)</script><p>其中$Q^<em>$为当策略$\pi$是最优策略$\pi^</em>$时，将$Q^*$写为期望的形式：</p><script type="math/tex; mode=display">Q^*(\textcolor{green}{s_{t}},\textcolor{red}{a_{t}})=\mathbb{E}[R_t+\gamma \cdot \textcolor{green}{S_{t+1}},\textcolor{red}{A_{t+1}}]</script><p>因为$Q^<em>$可以给动作打分，$A_{t+1}$是最优动作，可以最大化$Q^</em>$函数。有公式：</p><script type="math/tex; mode=display">Q^*(\textcolor{green}{S_{t+1}},\textcolor{red}{A_{t+1}})=\max\limits_{a} Q^*(s_{t+1},a)</script><p>之后用蒙特克罗近似即可得</p><script type="math/tex; mode=display">Q^*(\textcolor{green}{s_{t}},\textcolor{red}{a_{t}}) \approx r_t+\gamma \cdot \max\limits_{a} Q^*(s_{t+1},a)</script><h4 id="DQN（Deep-Q-learning）算法讲解"><a href="#DQN（Deep-Q-learning）算法讲解" class="headerlink" title="DQN（Deep Q-learning）算法讲解"></a>DQN（Deep Q-learning）算法讲解</h4><ol><li>用DQN神经网络$Q(\textcolor{green}{s},\textcolor{red}{a};\textbf{w})$来近似$Q^*_\pi(\textcolor{green}{s},\textcolor{red}{a})$</li></ol><img src="/2024/09/21/%E5%BC%BA%E5%8C%96%E5%AD%A6%E4%B9%A0%E7%9B%B8%E5%85%B3%E7%9F%A5%E8%AF%86%E7%82%B9%E6%A2%B3%E7%90%861/2024-09-23-13-17-02.png" class=""><ol><li>DQN的输出控制agent：<script type="math/tex; mode=display">a_t = \argmax\limits_{a} Q(s_{t},a;\textbf{w})</script></li></ol><h4 id="Q-learning和SARSA算法的区别是什么？"><a href="#Q-learning和SARSA算法的区别是什么？" class="headerlink" title="Q-learning和SARSA算法的区别是什么？"></a>Q-learning和SARSA算法的区别是什么？</h4><p>Q-learning更新规则中的折扣因子乘以的是$\max\limits<em>{a} Q^*(s</em>{t+1},a_{t+1})$，是下一个状态左右可能动作的最大Q值。</p><p>SARSA更新规则中折扣因子乘以的是$Q(s<em>{t+1},a</em>{t+1})$，其中$a_{t+1}$是根据当前策略在下个状态选择的动作。</p><p>总体而言，Q-learning更倾向于更加贪婪的搜索，因为它总是选择当前状态下的最大Q值对应的动作。而SARSA 则更倾向于使用当前策略，因此它在探索和利用之间可能更加平衡。</p><p>时序差分学习 temporal-difference learning（TD）is an unsupervised technique in which the learning agent learns to predict the expected value of a variable occurring at the end of a sequence of states. 进一步地，Reinforcement learning (RL) extends this technique by allowing the learned state-values to guide actions which subsequently change the environment state.</p><p>其核心是<strong>采样更新</strong>+<strong>自举</strong></p><p>即TD学习的输入是一个序列的状态值，而目标输出是预测下一个状态值。<br><br>这里$V<em>k$表示序列中经过我们预测得到的状态值。而，在学习过程中，梯度值$ \vartriangle_wV_k $将作为一个running sum。当到了t+1时刻，首先从序列中取出观测值$s</em>{t+1}$，将其作为$V<em>{t+1}$代入上式计算误差error $V</em>{t+1}-V_t$。得到的weight change将用于更新从序列开头的所有预测值$V_1$到$V_t$。</p><p>The update rule is, in effect, updating all preceding predictions to make each closer to prediction $V_{t+1}$ for the current state by using the difference in the successive prediction values, hence the name Temporal-Difference learning.</p><p>我们可以在TD过程中加入衰减项$\lambda$。下式定义了t时刻的eligibility trace。它决定着多久以前的预测有资格根据当前错误进行更新。</p><p>TD相较于传统的supervised learning的优点：<br>在multi-step prediction中能够更加有效地利用较小的训练样本得到预期的效果。</p><h2 id="策略梯度Policy-Gradient（PG）"><a href="#策略梯度Policy-Gradient（PG）" class="headerlink" title="策略梯度Policy Gradient（PG）"></a>策略梯度Policy Gradient（PG）</h2><p>基本思想：不去计算$Q$，直接训练神经网络神经网络输入state输出action。也被称为<strong>Policy-based RL</strong>。</p><p>DQN通过critic评判来反过来选择action，而PG直接使用actor去和环境进行互动，然后一个episode回合后可以加得一个总的Reward。PG就是要最大化一整个回合后的total reward。</p><h2 id="Reinforcement-Learning-RL"><a href="#Reinforcement-Learning-RL" class="headerlink" title="Reinforcement Learning (RL)"></a>Reinforcement Learning (RL)</h2><p>RL问题包含两个方面，1. agent must learn to both predict the values of environment states that it encounters; 2. Use those predicted values to change the environment in order to maximize reward.</p><p>定义reward为一个序列某一个状态的输出。序列中所有输出的加权和定义为return，定义衰减参数为$\gamma$。<br></p><p>和TD中的$V_{t+1}-V_t$不一样，此时的误差error写为：<br></p><p>什么是offline reinforcement learning?<br>offline reinforcement learning不依赖于与环境的实时交互来获取数据，而是从已有的静态数据集中学习策略。与传统的监督式学习任务不同，offline reinforcement learning依赖于奖励信号来评估策略的好坏，奖励信号通常与长期回报相关。而监督式学习依赖于损失函数来评估预测的准确性，损失函数通常是基于单个预测结果与真实标签的差异。另外，offline reinforcement learning虽然在训练阶段不与环境交互，但学习过程需要考虑到策略在实际环境中可能的交互效果，以及如何从固定数据集中学习有效的策略。</p><h2 id="强化学习中的蒙特卡洛采样"><a href="#强化学习中的蒙特卡洛采样" class="headerlink" title="强化学习中的蒙特卡洛采样"></a>强化学习中的蒙特卡洛采样</h2><p>第一步：根据一个策略往前走，一直走到最后，期间什么都不用算，记录每一个状态转移以及对应的reward r即可。<br>第二步：从终点进行回溯，每到一个节点，计算一次G值。当前节点的G值等于上一个节点G值G’，乘以一个折扣gamma，再加上r。<br><img src="/2024/09/21/%E5%BC%BA%E5%8C%96%E5%AD%A6%E4%B9%A0%E7%9B%B8%E5%85%B3%E7%9F%A5%E8%AF%86%E7%82%B9%E6%A2%B3%E7%90%861/2024-09-21-17-05-48.png" class=""></p><p><strong>如果不考虑折扣率，这个G值其实就是某个状态到最终状态奖励的总和</strong>。</p><p>蒙特卡洛方法的缺点是计算G值需要的时间很长，因为需要走到最终步才能进行回溯。</p><p><strong>可以用时序差分算法TD，走N步，就可以开始回溯更新。</strong></p><img src="/2024/09/21/%E5%BC%BA%E5%8C%96%E5%AD%A6%E4%B9%A0%E7%9B%B8%E5%85%B3%E7%9F%A5%E8%AF%86%E7%82%B9%E6%A2%B3%E7%90%861/2024-09-22-09-03-01.png" class="">]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>Multi-Agent Learning学习与实践</title>
+      <link href="/2024/09/21/Multi-Agent-Learning%E5%AD%A6%E4%B9%A0%E4%B8%8E%E5%AE%9E%E8%B7%B5/"/>
+      <url>/2024/09/21/Multi-Agent-Learning%E5%AD%A6%E4%B9%A0%E4%B8%8E%E5%AE%9E%E8%B7%B5/</url>
+      
+        <content type="html"><![CDATA[<h1 id="Multi-Agent-Learning学习与实践"><a href="#Multi-Agent-Learning学习与实践" class="headerlink" title="Multi-Agent Learning学习与实践"></a>Multi-Agent Learning学习与实践</h1><p><strong>Multi-Agent Actor-Critic for Mixed Cooperative-Competitive Environments</strong><br>该篇论文提出了MADDPG</p><p>Successfully scaling RL to environments with multiple agents is crucial to building artificially intelligent systems that can productively interact with humans and each other.</p><p>Unfortunately, traditional reinforcement learning approaches such as Q-Learning or policy gradient are poorly suited to multi-agent environments.<br>就是说，multi-agent learning的环境可能在变化。而传统的Q-learning策略依赖于过去的学习经验来使学习过程稳定。</p><p>采用的学习策略是centralized training with decentralized execution。<br>执行过程中，每个agent只使用local information（自己的观测）。</p><p>multi-agent decentralized actor, centralized critic方法示意图<br><img src="/2024/09/21/Multi-Agent-Learning%E5%AD%A6%E4%B9%A0%E4%B8%8E%E5%AE%9E%E8%B7%B5/2024-09-21-11-29-35.png" class=""></p><p>一个包含$N$个agent的场景，每个agent产生policy的网络定义为$\pmb{\theta}={\theta_1,…,\theta_N}$，产生的policy定义为$\pmb{\pi}={\pi_1,…,\pi_N}$</p><p>这里其实涉及到强化学习的两种方式：Policy-based learning（Policy gradient）以及Value-based learning（Q learning）。而Actor-Critic合并了这两种方式。</p><p>Actor 基于概率选行为, Critic 基于 Actor 的行为评判行为的得分, Actor 根据 Critic 的评分修改选行为的概率。<br>Actor Critic优点：可以进行单步更新, 相较于传统的PG回合更新要快.</p><p>Actor（玩家）：为了玩转这个游戏得到尽量高的reward，需要一个策略：输入state，输出action，即上面的第2步。（可以用神经网络来近似这个函数。剩下的任务就是如何训练神经网络，得更高的reward。这个网络就被称为actor）<br>Critic（评委）：因为actor是基于策略policy的所以需要critic来计算出对应actor的value来反馈给actor，告诉他表现得好不好。所以就要使用到之前的Q值。（当然这个Q-function所以也可以用神经网络来近似。这个网络被称为critic。</p><p>更形象的形容，Actor是舞台上的舞者，Critic是台下的评委。Actor在台上跳舞，一开始舞姿并不好看，Critic根据Actor的舞姿打分。Actor根据Critic给出的分数去学习。如果Critic给出的分数高，那么Actor会调整这个动作的输出概率。相反，如果Critic给的分数低，那么就减少这个动作的输出概率。</p><h1 id="Extended-Python-MARL-framework-EPyMARL"><a href="#Extended-Python-MARL-framework-EPyMARL" class="headerlink" title="Extended Python MARL framework - EPyMARL"></a>Extended Python MARL framework - EPyMARL</h1><p><a href="https://github.com/uoe-agents/epymarl?tab=readme-ov-file">https://github.com/uoe-agents/epymarl?tab=readme-ov-file</a></p><h4 id="Benchmarking-Multi-Agent-Deep-Reinforcement-Learning-Algorithms-in-Cooperative-Tasks"><a href="#Benchmarking-Multi-Agent-Deep-Reinforcement-Learning-Algorithms-in-Cooperative-Tasks" class="headerlink" title="Benchmarking Multi-Agent Deep Reinforcement Learning Algorithms in Cooperative Tasks"></a>Benchmarking Multi-Agent Deep Reinforcement Learning Algorithms in Cooperative Tasks</h4><p>这篇文章为Multi-Agent Learning提供了一个公用的benchmark</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>一些使用Pycharm的小技巧</title>
+      <link href="/2024/09/20/%E4%B8%80%E4%BA%9B%E4%BD%BF%E7%94%A8Pycharm%E7%9A%84%E5%B0%8F%E6%8A%80%E5%B7%A7/"/>
+      <url>/2024/09/20/%E4%B8%80%E4%BA%9B%E4%BD%BF%E7%94%A8Pycharm%E7%9A%84%E5%B0%8F%E6%8A%80%E5%B7%A7/</url>
+      
+        <content type="html"><![CDATA[<h1 id="一些使用Pycharm的小技巧"><a href="#一些使用Pycharm的小技巧" class="headerlink" title="一些使用Pycharm的小技巧"></a>一些使用Pycharm的小技巧</h1><p>为当前的python解释器添加PYTHONPATH环境变量<br><img src="/2024/09/20/%E4%B8%80%E4%BA%9B%E4%BD%BF%E7%94%A8Pycharm%E7%9A%84%E5%B0%8F%E6%8A%80%E5%B7%A7/2024-09-20-19-48-13.png" class=""></p><img src="/2024/09/20/%E4%B8%80%E4%BA%9B%E4%BD%BF%E7%94%A8Pycharm%E7%9A%84%E5%B0%8F%E6%8A%80%E5%B7%A7/2024-09-20-19-48-59.png" class=""><p>在intepreter paths里添加地址即可</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>将Hierarchical Graph Attention-based Model用于Multi-agent Learning</title>
+      <link href="/2024/09/20/%E5%B0%86Hierarchical-Graph-Attention-based-Model%E7%94%A8%E4%BA%8EMulti-agent-Learning/"/>
+      <url>/2024/09/20/%E5%B0%86Hierarchical-Graph-Attention-based-Model%E7%94%A8%E4%BA%8EMulti-agent-Learning/</url>
+      
+        <content type="html"><![CDATA[<h1 id="将Hierarchical-Graph-Attention-based-Model用于Multi-agent-Learning"><a href="#将Hierarchical-Graph-Attention-based-Model用于Multi-agent-Learning" class="headerlink" title="将Hierarchical-Graph-Attention-based-Model用于Multi-agent Learning"></a>将Hierarchical-Graph-Attention-based-Model用于Multi-agent Learning</h1><p>文章名：<br><strong>Scalable and Transferable Reinforcement Learning for<br>Multi-Agent Mixed Cooperative–Competitive Environments<br>Based on Hierarchical Graph Attention</strong></p><img src="/2024/09/20/%E5%B0%86Hierarchical-Graph-Attention-based-Model%E7%94%A8%E4%BA%8EMulti-agent-Learning/2024-09-20-15-39-39.png" class=""><img src="/2024/09/20/%E5%B0%86Hierarchical-Graph-Attention-based-Model%E7%94%A8%E4%BA%8EMulti-agent-Learning/2024-09-20-15-39-28.png" class=""><img src="/2024/09/20/%E5%B0%86Hierarchical-Graph-Attention-based-Model%E7%94%A8%E4%BA%8EMulti-agent-Learning/2024-09-20-15-39-17.png" class=""><h4 id="这里的HGAT和GRU分别对应actor-critic网络中的哪两部分？"><a href="#这里的HGAT和GRU分别对应actor-critic网络中的哪两部分？" class="headerlink" title="这里的HGAT和GRU分别对应actor-critic网络中的哪两部分？"></a>这里的HGAT和GRU分别对应actor-critic网络中的哪两部分？</h4>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>ISSCC2023_AQ与AB量化的加速器</title>
+      <link href="/2024/09/19/ISSCC2023-AQ%E4%B8%8EAB%E9%87%8F%E5%8C%96%E7%9A%84%E5%8A%A0%E9%80%9F%E5%99%A8/"/>
+      <url>/2024/09/19/ISSCC2023-AQ%E4%B8%8EAB%E9%87%8F%E5%8C%96%E7%9A%84%E5%8A%A0%E9%80%9F%E5%99%A8/</url>
+      
+        <content type="html"><![CDATA[<h1 id="ISSCC2023-AQ与AB量化的加速器"><a href="#ISSCC2023-AQ与AB量化的加速器" class="headerlink" title="ISSCC2023 AQ与AB量化的加速器"></a>ISSCC2023 AQ与AB量化的加速器</h1><p><strong>ISSCC2023 22.3</strong>论文题目为：<br><strong>A 127.8TOPS/W Arbitrarily Quantized 1-to-8b Scalable-Precision Accelerator for General-Purpose Deep Learning with Reduction of Storage, Logic and Latency Waste</strong><br>它的journal版本发表在JSSC2024上，题目为<strong>Multipurpose Deep-Learning Accelerator for Arbitrary Quantization With Reduction of Storage, Logic, and Latency Waste</strong></p><p>工艺为28nm LP CMOS</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>Pytorch DDP实践</title>
+      <link href="/2024/09/19/Pytorch-DDP%E5%AE%9E%E8%B7%B5/"/>
+      <url>/2024/09/19/Pytorch-DDP%E5%AE%9E%E8%B7%B5/</url>
+      
+        <content type="html"><![CDATA[<h1 id="Pytorch-DDP实践"><a href="#Pytorch-DDP实践" class="headerlink" title="Pytorch DDP实践"></a>Pytorch DDP实践</h1><p>关于使用多GPU进行分布式训练的详细教程可见<a href="https://zhuanlan.zhihu.com/p/113694038">https://zhuanlan.zhihu.com/p/113694038</a></p><p>实现一个distributed data parallel的重点是管理各个进程之间的通信问题。首先我们需要创建进程组。</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">import os</span><br><span class="line">import sys</span><br><span class="line">import tempfile</span><br><span class="line">import torch</span><br><span class="line">import torch.distributed as dist</span><br><span class="line">import torch.nn as nn</span><br><span class="line">import torch.optim as optim</span><br><span class="line">import torch.multiprocessing as mp</span><br><span class="line"></span><br><span class="line">from torch.nn.parallel import DistributedDataParallel as DDP</span><br><span class="line"></span><br><span class="line"># On Windows platform, the torch.distributed package only</span><br><span class="line"># supports Gloo backend, FileStore and TcpStore.</span><br><span class="line"># For FileStore, set init_method parameter in init_process_group</span><br><span class="line"># to a local file. Example as follow:</span><br><span class="line"># init_method=&quot;file:///f:/libtmp/some_file&quot;</span><br><span class="line"># dist.init_process_group(</span><br><span class="line">#    &quot;gloo&quot;,</span><br><span class="line">#    rank=rank,</span><br><span class="line">#    init_method=init_method,</span><br><span class="line">#    world_size=world_size)</span><br><span class="line"># For TcpStore, same way as on Linux.</span><br><span class="line"></span><br><span class="line">def setup(rank, world_size):</span><br><span class="line">    os.environ[&#x27;MASTER_ADDR&#x27;] = &#x27;localhost&#x27;</span><br><span class="line">    os.environ[&#x27;MASTER_PORT&#x27;] = &#x27;12355&#x27;</span><br><span class="line"></span><br><span class="line">    # initialize the process group</span><br><span class="line">    dist.init_process_group(&quot;gloo&quot;, rank=rank, world_size=world_size)</span><br><span class="line"></span><br><span class="line">def cleanup():</span><br><span class="line">    dist.destroy_process_group()</span><br><span class="line"></span><br></pre></td></tr></table></figure><p>这里的communication backend有四个选项：gloo（facebook），MPI（OpenMPI），NCCL（nvidia）与TCP。他们属于不同的分布式框架。一般GPU训练选择nccl，CPU训练选gloo。</p><h2 id="单机多卡"><a href="#单机多卡" class="headerlink" title="单机多卡"></a>单机多卡</h2><p>首先，检测GPU数目。<br>可以使用<code>torch.cuda.device_count()</code>来打印可用的GPU数目。</p><p><strong>多卡训练要考虑通信开销的，是个trade off的过程，不见得四块卡一定比两块卡快多少，可能是训练到四块卡的时候通信开销已经占了大头。</strong></p><h4 id="怎样将原来的单GPU训练代码改为多卡distributed训练代码？"><a href="#怎样将原来的单GPU训练代码改为多卡distributed训练代码？" class="headerlink" title="怎样将原来的单GPU训练代码改为多卡distributed训练代码？"></a>怎样将原来的单GPU训练代码改为多卡distributed训练代码？</h4><p>模型侧，只需要用DistributedDataParallel包装一下原来的model即可，在backend端它会支持梯度的All-Reduce操作。数据侧，我们nn.utils.data.DistributedSampler来给各个进程切分数据，只需要在dataloader中使用这个sampler就好，值得注意的一点是你要训练循环过程的每个epoch开始时调用train_sampler.set_epoch(epoch)，（主要是为了保证每个epoch的划分是不同的）其它的训练代码都保持不变。</p><h4 id="怎样查看本地ip与通信端口？"><a href="#怎样查看本地ip与通信端口？" class="headerlink" title="怎样查看本地ip与通信端口？"></a>怎样查看本地ip与通信端口？</h4><p>配置分布式任务的第一步，是确保机器之间能够互相正常通信：</p><h2 id="多机多卡"><a href="#多机多卡" class="headerlink" title="多机多卡"></a>多机多卡</h2>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>Cadence Virtuoso 操作备忘</title>
+      <link href="/2024/09/16/Cadence-Virtuoso-%E6%93%8D%E4%BD%9C%E5%A4%87%E5%BF%98/"/>
+      <url>/2024/09/16/Cadence-Virtuoso-%E6%93%8D%E4%BD%9C%E5%A4%87%E5%BF%98/</url>
+      
+        <content type="html"><![CDATA[<h1 id="Cadence-Virtuoso操作备忘"><a href="#Cadence-Virtuoso操作备忘" class="headerlink" title="Cadence Virtuoso操作备忘"></a>Cadence Virtuoso操作备忘</h1><p>将plot好的电流曲线送进计算器计算功耗。<br><img src="/2024/09/16/Cadence-Virtuoso-%E6%93%8D%E4%BD%9C%E5%A4%87%E5%BF%98/2024-09-16-14-48-54.png" class=""></p><p>下面的图标用于打开function panel，里面有一系列函数可供选择。<br><img src="/2024/09/16/Cadence-Virtuoso-%E6%93%8D%E4%BD%9C%E5%A4%87%E5%BF%98/2024-09-16-14-52-15.png" class=""></p><img src="/2024/09/16/Cadence-Virtuoso-%E6%93%8D%E4%BD%9C%E5%A4%87%E5%BF%98/2024-09-16-14-52-37.png" class=""><p>将analoglib中的vpulse信号按如下方式设置，可以生成用于仿真的rst信号。<br><img src="/2024/09/16/Cadence-Virtuoso-%E6%93%8D%E4%BD%9C%E5%A4%87%E5%BF%98/2024-09-16-15-33-33.png" class=""></p><img src="/2024/09/16/Cadence-Virtuoso-%E6%93%8D%E4%BD%9C%E5%A4%87%E5%BF%98/2024-09-16-15-32-11.png" class=""><img src="/2024/09/16/Cadence-Virtuoso-%E6%93%8D%E4%BD%9C%E5%A4%87%E5%BF%98/2024-09-16-15-31-48.png" class="">]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>奥斯曼土耳其打法</title>
+      <link href="/2024/09/13/%E5%A5%A5%E6%96%AF%E6%9B%BC%E5%9C%9F%E8%80%B3%E5%85%B6%E6%89%93%E6%B3%95/"/>
+      <url>/2024/09/13/%E5%A5%A5%E6%96%AF%E6%9B%BC%E5%9C%9F%E8%80%B3%E5%85%B6%E6%89%93%E6%B3%95/</url>
+      
+        <content type="html"><![CDATA[<h1 id="奥斯曼土耳其与俄罗斯打法"><a href="#奥斯曼土耳其与俄罗斯打法" class="headerlink" title="奥斯曼土耳其与俄罗斯打法"></a>奥斯曼土耳其与俄罗斯打法</h1><h2 id="双兵营亲兵rush"><a href="#双兵营亲兵rush" class="headerlink" title="双兵营亲兵rush"></a>双兵营亲兵rush</h2><p>时代1，1TP1房子开局。只用掉300木，因此可以留100木不开。一般会在<strong>3分50秒</strong>左右到达时代2。<br>一卡发3农。军需官400木升级。上本期间6农伐木凑够400木，同时1农民采金凑够50金。<br>时代2前置双兵营，并起4个房子补人口，用掉升级送的400木。一卡发700金。双兵营点下一轮亲兵，第一轮亲兵只需要补1一个房子就够了。第一轮亲兵出来的时间约为<strong>5分10秒</strong>左右。二卡发700肉，第二轮亲兵可以等肉箱发了一半之后再造，约为<strong>5分30秒</strong>左右。因为第二轮亲兵如果要刷满，比较依赖700肉开出的速度。紧接着点下第三轮亲兵，同时卡发3德利骑兵。</p><p><strong>7分钟</strong>左右，30亲兵+3德利冲家。</p><h1 id="TPboom-10马FF"><a href="#TPboom-10马FF" class="headerlink" title="TPboom+10马FF"></a>TPboom+10马FF</h1><p>时代1，1TP1房子1清真寺开局，一卡3农。一般会在<strong>4分钟</strong>左右到达时代2。上时代期间起市场，研究猎犬并收集25木125金。</p><h1 id="丝绸之路-亲兵阿巴斯"><a href="#丝绸之路-亲兵阿巴斯" class="headerlink" title="丝绸之路+亲兵阿巴斯"></a>丝绸之路+亲兵阿巴斯</h1><p>开局所有箱子只收集到剩20点。只起1个TP，军需官400木升级。一卡发丝绸之路。卡发到之后采集箱子，之后起一个房子与第二个TP。<strong>4分钟</strong>左右到达时代2。</p><p>到达时代2后，2农前置兵营。一卡发700木，二卡发700金。第一轮出满5个亲兵。700木到后，起一个炮厂。<strong>7分钟</strong>左右拥有10亲兵+5阿巴斯。</p><p>如果是对付俄罗斯，应选择阿巴斯加马的组合。</p><h1 id="海图开-亲兵阿巴斯"><a href="#海图开-亲兵阿巴斯" class="headerlink" title="海图开+亲兵阿巴斯"></a>海图开+亲兵阿巴斯</h1><p>开局1农起码头，并造3个渔船。打到木宝可以4船。上时代期间全体伐木，起清真寺+市场+猎犬+拉锯。</p><p>时代2：400木前置兵营，造一个房子，同时保持出渔船。4-5农维持补房子和渔船。<br>一卡700木，出炮厂，以及市场码头科技。<br>二卡700金，出亲兵阿巴斯。</p><p>奥斯曼对奥斯曼互相发丝绸之路的局，二本后一卡应发5亲兵，尽快去烧对方的TP。</p><h1 id="俄罗斯打法"><a href="#俄罗斯打法" class="headerlink" title="俄罗斯打法"></a>俄罗斯打法</h1><p>俄罗斯TP boom对付葡萄牙。</p><p>葡萄牙因为有两个TP，硬冲可能不会有好结果。正确的解法是，TP boom同时海上出船进行反制。</p><p>二本700木+700金。3卡600木出码头打海。葡萄牙上本后一卡大概率是8葡散。如果对方发护卫舰，可以准备造护卫舰进行防守。三本刷毛散与弓骑兵应对。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>计算机体系结构——量化研究方法笔记2</title>
+      <link href="/2024/09/13/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B02/"/>
+      <url>/2024/09/13/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B02/</url>
+      
+        <content type="html"><![CDATA[<h1 id="流水线与指令级并行"><a href="#流水线与指令级并行" class="headerlink" title="流水线与指令级并行"></a>流水线与指令级并行</h1><p><strong>流水线冒险（pipeline hazard）</strong>包括<strong>结构冒险（structure hazard）</strong>，<strong>数据冒险（data hazard）</strong>与<strong>控制冒险（Control hazard）</strong></p><h4 id="什么是结构冒险？"><a href="#什么是结构冒险？" class="headerlink" title="什么是结构冒险？"></a>什么是结构冒险？</h4><p>在执行特定的指令组合时，由于资源冲突，一个指令不得不等待另一个指令结束再进行执行。通常情况下，流水线会将其中的一个指令停顿，直到所需单元可用为止。</p><p><strong>旁路（forwarding）技术</strong>可以将<strong>数据冒险</strong>停顿减少到最小。</p><h4 id="怎样实现动态分支预测？"><a href="#怎样实现动态分支预测？" class="headerlink" title="怎样实现动态分支预测？"></a>怎样实现动态分支预测？</h4><p>简单的动态分支预测机制是<strong>分支预测缓冲区</strong>或<strong>分支历史表</strong>。</p><h2 id="记分牌算法与Tomasulo算法"><a href="#记分牌算法与Tomasulo算法" class="headerlink" title="记分牌算法与Tomasulo算法"></a>记分牌算法与Tomasulo算法</h2><p>解决WAW（写后写）与RAW（读后写）产生的数据冒险问题。采用寄存器重命名的方式可以解决，这两种数据冒险成为假数据冒险。而对于WAR（写后读）的数据冒险问题。</p><p>“记分牌”本质是一个信息存储单元，分别记录了<strong>功能单元状态</strong>与<strong>寄存器结果状态</strong>。</p><p>信息包括部件是否正在忙、部件执行的指令类型、部件现在需要的源寄存器、部件现在的目的寄存器、源寄存器是否准备好($R_j$，$R_k$ 表示)和如果源寄存器没准备好部件该向哪里要数据($Q_j$，$Q_k$)表示。</p><p><strong>记分牌</strong>算法特点是顺序发射和乱序执行，还是会因为“写后写”和“读后写”冒险而产生阻塞，浪费了乱序性能。</p><p><strong>Tomasulo算法</strong><br>其最大的特点是借助寄存器重命名消除假数据冒险。<br><img src="/2024/09/13/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B02/2024-09-17-15-55-03.png" class=""></p><p>其中FP OP Queue:浮点指令队列，用于存储待发射的指令。<br>青绿色模块是加法单元和乘法单元的保留站。<br>蓝绿色的Address Unit是地址计算单元，在这个算法中存储指令在执行前会先计算好存储地址；<br>Memory Unit则是存储单元；<br>另外数据的计算结果通过一个Common Data Bus (CDB)总线写回。写回的数据通过CDB总线直通寄存器堆和各个<strong>保留站</strong>。如果执行单元中有指令正在执行，其他指令就在保留站中等待；如果指令缺少源数据，就留在<strong>保留站</strong>中，<strong>时刻监听CDB总线</strong>，如果CDB总线广播了需要的数据，就立马拷贝下来，然后准备执行。</p><p><strong>调度流程</strong><br><strong>发射</strong>：Tomasulo算法是顺序发射的，即指令按照程序中的顺序一条接一条被发射到保留站。判断能否发射的唯一标准是指令对应通路的保留站是否有空余位置，只要保留站有空余，就可以把指令发射到保留站中。周期结束时会更新保留站和寄存器结果状态表，如果指令有可以读取的数据，就会立刻拷贝到保留站中；寄存器结果状态表中总是存有最新的值，即如果后序指令的目的寄存器和前序指令的目的寄存器重合，那就只保留后序指令的写信息。<br><strong>执行</strong>：指令通过拷贝数据和监听CDB获得源数据，然后开始执行，执行可能是多周期的，在执行过程中不改变处理器状态。<br><strong>写回</strong>：指令在写回阶段通过CDB总线将数据直通到寄存器堆和各个保留站；周期结束时，根据寄存器结果状态表来更新寄存器堆，并且清除保留站和寄存器结果状态表的信息。</p><p>Tomasulo算法中指令的存储地址需要计算得到。<br><img src="/2024/09/13/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B02/2024-09-17-16-52-07.png" class=""></p><p>案例：</p><p><strong>Cycle1:</strong></p><img src="/2024/09/13/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B02/2024-09-17-16-56-14.png" class=""><p><strong>Cycle2:</strong></p><img src="/2024/09/13/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B02/2024-09-17-16-56-51.png" class=""><p>第二个周期结束时，第一条指令的存储地址被计算出来。</p><p><strong>传统的架构中，因为第一条指令占用了整数部件，以至于后续的指令都无法发射。</strong></p><p><strong>Cycle3</strong></p><img src="/2024/09/13/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B02/2024-09-17-16-57-09.png" class=""><p>指令在发射的时候会更新寄存器状态表，此时<strong>后序指令和前序指令的目的寄存器重合了</strong>（同为Load2），所以用后序指令的写信息标志寄存器，表示只会把后序指令的计算结果写进寄存器，这样可以解决写后写冒险；<br><strong>Cycle4</strong></p><img src="/2024/09/13/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B02/2024-09-17-16-57-36.png" class=""><p><strong>Cycle5</strong></p><img src="/2024/09/13/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B02/2024-09-17-17-12-54.png" class=""><p>第五个周期，第二条指令到写回阶段，通过CDB总线广播数据；第三条指令通过CDB总线抓取到了源数据，下一个周期就会开始执行，图中Mult1前面的数字10表示这条指令接下来将用十个周期完成执行；同理第四条指令通过CDB总线抓取到了源数据，下一个周期就会开始执行；第五条指令因为乘法单元的保留站有空余，所以可以发射。</p><p>周期结束时，第二条指令清除保留站信息，清除寄存器结果状态表；第三条指令和第四条指令更新保留站，将CDB总线上的数据拷贝到保留站中，至此，这两条指令数据准备完毕，马上就可以执行了；第五条指令更新保留站和寄存器结果状态表。Qj显示该指令需要等到乘法保留站第一行的指令的结果。</p><p><strong>Cycle6</strong></p><img src="/2024/09/13/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B02/2024-09-17-17-13-57.png" class=""><h4 id="Tomasulo算法怎样解决WAW与RAW冒险？"><a href="#Tomasulo算法怎样解决WAW与RAW冒险？" class="headerlink" title="Tomasulo算法怎样解决WAW与RAW冒险？"></a>Tomasulo算法怎样解决WAW与RAW冒险？</h4><p>记分牌<strong>每条通路只能存一条指令，导致经常有指令因为结构冒险而不能发射</strong>，而Tomasulo引入保留站之后每条通路可以缓冲下多条指令，这样的做法<strong>平缓了指令发射的速度；</strong></p><p>写后写冒险时，记分牌过度纠结寄存器名字，会把所有指令的结果都写进寄存器堆，会因为写后写冒险阻塞指令发射，而Tomasulo只保存最新的写入值，这样即保证了正确的结果，又减少了无谓的工作；<br>读后写冒险时，记分牌过度纠结寄存器名字，指令在执行之前一直检测的是寄存器堆，一旦数据准备好，就会从寄存器堆中取数，这样的后果就是后序指令即使计算完结果也可能不能立刻写回寄存器堆，而Tomasulo则在<strong>发射时就拷贝数据</strong>，贯彻数据流的思想——“<strong>寄存器名字不重要，寄存器里的数据才重要</strong>”。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>架构方向面试准备</title>
+      <link href="/2024/09/13/%E6%9E%B6%E6%9E%84%E6%96%B9%E5%90%91%E9%9D%A2%E8%AF%95%E5%87%86%E5%A4%87/"/>
+      <url>/2024/09/13/%E6%9E%B6%E6%9E%84%E6%96%B9%E5%90%91%E9%9D%A2%E8%AF%95%E5%87%86%E5%A4%87/</url>
+      
+        <content type="html"><![CDATA[<h1 id="SOC架构工程师面试准备"><a href="#SOC架构工程师面试准备" class="headerlink" title="SOC架构工程师面试准备"></a>SOC架构工程师面试准备</h1><p>AMBA总线，全称为Advanced Microcontroller Bus Architecture。其包含5种协议，分别为Advanced High-Performance Bus（AHB），Advanced System Bus（ASB），Advanced Peripheral Bus（APB），Advanced Trace Bus（ATB）与AXI（AMBA Extensible Interface）。</p><h2 id="APB总线"><a href="#APB总线" class="headerlink" title="APB总线"></a>APB总线</h2><p>APB主要用于连接低速且低功率的外设。其<strong>无流水线结构</strong>，其三种状态如下：<br><img src="/2024/09/13/%E6%9E%B6%E6%9E%84%E6%96%B9%E5%90%91%E9%9D%A2%E8%AF%95%E5%87%86%E5%A4%87/2024-09-13-14-20-28.png" class=""></p><h2 id="AHB总线"><a href="#AHB总线" class="headerlink" title="AHB总线"></a>AHB总线</h2><p>AHB支持split事务处理，即允许多个总线主设备同时使用总线，从而提高总线的并行性与效率。</p><h4 id="为什么说AHB总线支持split事务处理"><a href="#为什么说AHB总线支持split事务处理" class="headerlink" title="为什么说AHB总线支持split事务处理"></a>为什么说AHB总线支持split事务处理</h4><p>AHB总线支持split事务处理，这是由于它能够在总线仲裁器（Arbiter）的控制下，将一个未完成的突发传输（Burst transfer）暂时中断，以便其他主设备（Master）可以访问总线。这种机制允许总线在高负载情况下更高效地进行任务调度，避免单个主设备长时间占用总线而阻塞其他设备。<br>在AHB总线中，当一个主设备发起一个突发传输请求时，如果该传输需要较长时间才能完成，从设备（Slave）可以发出一个split响应。这个响应会通知仲裁器暂时中止当前的传输，并允许其他等待的主设备接入总线。当从设备准备好继续传输时，它会通过HSPLIT信号通知仲裁器，仲裁器随后会恢复原主设备的访问权限，以便完成剩余的传输。<br>Split事务处理的关键在于，它<strong>允许总线在多个主设备之间灵活切换</strong>，从而优化总线利用率并减少等待时间。这种机制在多主设备系统中尤为重要，因为它可以防止单个设备长时间占用总线，从而确保所有设备都能得到公平的服务。</p><img src="/2024/09/13/%E6%9E%B6%E6%9E%84%E6%96%B9%E5%90%91%E9%9D%A2%E8%AF%95%E5%87%86%E5%A4%87/2024-09-13-11-39-33.png" class=""><ol><li>一次完整的发送流程从信号①开始，①中的信号表示AHB master给arbiter的信号，HBUSREQx表示向其申请总线，HLOCKx表示锁定总线。</li><li>在获得arbiter返回的②hgrant信号后表示申请到了总线，这时候可以开始传输；</li><li>发送③中的地址信号，控制信号和写数据信号</li><li>在得到主机的信号后，从机给与的response ④</li><li>若是读操作，在AHB Master在第一拍给出控制信号和地址信号后，在第二拍（若hready = 1）AHB slaver给出hrdata,随后AHB master在第三拍采样得到数据hrdata.</li><li>htrans表示传输的类型，分别有IDLE,BUSY,NONSEQ(非连续)，SEQ(连续)，四种类型；</li><li>hburst用于描述突发传输的四种模式，分别是SINGLE(单一传输)，INCR(未指定长度的增量突发)，WRAP4(4拍回环突发)，INCR4(4拍增量突发)；burst模式很复杂，有空单独开一章来详细的讲；</li><li>hwrite表示读写控制信号，1表示写，0表示读；</li><li>hsize表示传输的大小，通常和hburst信号来一起决定burst传输的地址边界；</li><li>hport是保护控制信号，不常用；</li><li>hready和hresp是从机的传输响应信号，其中hready主要用于扩展信号，当其拉低时可以对数据进行扩展，当其拉高表示一次传输完成，hresp和hready相结合来返回响应，当hready =1 时，hresp会返回OKAY信号表示传输成功完成，其余还有ERROR,RETRY,SPILT三种其他响应类型；</li></ol><h4 id="回环突发（wrapping-burst）与增量突发（incremental-burst）的区别是什么？"><a href="#回环突发（wrapping-burst）与增量突发（incremental-burst）的区别是什么？" class="headerlink" title="回环突发（wrapping burst）与增量突发（incremental burst）的区别是什么？"></a>回环突发（wrapping burst）与增量突发（incremental burst）的区别是什么？</h4><p>增量突发可以是<strong>未定义长度</strong>的，这意味着突发可以在任何时候通过插入非顺序（NONSEQ）或空闲（IDLE）传输来终止。<br>回环突发在每次传输后会增加地址，但当达到一定的边界时，地址会“回环”或“包装”回到一个较低的地址。这个边界通常是突发长度和传输大小的乘积。<br>例如，一个4拍回环突发，如果传输大小是8字节（即一个字），那么在传输了32字节（4拍 $\times$ 8字节/拍）后，地址会回环到初始地址或某个较低的地址。回环突发的长度通常是固定的，如2、4、8或16拍。<br>增量突发适用于需要连续访问大量数据的场景，而回环突发则适用于需要循环访问固定大小数据块的场景，如缓存行或环形缓冲区。</p><p>AHB slave的接口<br><img src="/2024/09/13/%E6%9E%B6%E6%9E%84%E6%96%B9%E5%90%91%E9%9D%A2%E8%AF%95%E5%87%86%E5%A4%87/2024-09-13-11-52-18.png" class=""></p><ol><li>首先根据hselx来看slave是否被选中；</li><li>被选中后根据②中的控制和地址信号来判断传输master传输的要求；</li><li>若是读请求，则送出读数据③，写请求则接收写数据;</li><li>给出传输响应④;</li></ol><h4 id="AHB总线仲裁器-arbiter"><a href="#AHB总线仲裁器-arbiter" class="headerlink" title="AHB总线仲裁器 (arbiter)"></a>AHB总线仲裁器 (arbiter)</h4><img src="/2024/09/13/%E6%9E%B6%E6%9E%84%E6%96%B9%E5%90%91%E9%9D%A2%E8%AF%95%E5%87%86%E5%A4%87/2024-09-13-14-09-05.png" class=""><p>aribiter用于选择对应的master来对总线进行控制。以下是两个AHB master争夺总线控制的时序图：<br><img src="/2024/09/13/%E6%9E%B6%E6%9E%84%E6%96%B9%E5%90%91%E9%9D%A2%E8%AF%95%E5%87%86%E5%A4%87/2024-09-13-14-09-59.png" class=""></p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>用可扩展的增强学习来部署大规模控制系统</title>
+      <link href="/2024/09/04/%E7%94%A8%E5%8F%AF%E6%89%A9%E5%B1%95%E7%9A%84%E5%A2%9E%E5%BC%BA%E5%AD%A6%E4%B9%A0%E6%9D%A5%E9%83%A8%E7%BD%B2%E5%A4%A7%E8%A7%84%E6%A8%A1%E6%8E%A7%E5%88%B6%E7%B3%BB%E7%BB%9F/"/>
+      <url>/2024/09/04/%E7%94%A8%E5%8F%AF%E6%89%A9%E5%B1%95%E7%9A%84%E5%A2%9E%E5%BC%BA%E5%AD%A6%E4%B9%A0%E6%9D%A5%E9%83%A8%E7%BD%B2%E5%A4%A7%E8%A7%84%E6%A8%A1%E6%8E%A7%E5%88%B6%E7%B3%BB%E7%BB%9F/</url>
+      
+        <content type="html"><![CDATA[<h1 id="用可扩展的增强学习来部署大规模控制系统"><a href="#用可扩展的增强学习来部署大规模控制系统" class="headerlink" title="用可扩展的增强学习来部署大规模控制系统"></a>用可扩展的增强学习来部署大规模控制系统</h1><p>论文标题为<strong>Efficient and scalable reinforcement learning<br>for large-scale network control</strong>，发表在2024年7月的Nature Machine Intelligence子刊上。<br>作者来自北京大学。</p><p>本章首先提出了了一个概念，是如何部署一个可扩展的decision-making策略来构造一个大规模控制系统，其关键在于设计一个去中心化的决策优化策略（decentralized policy optimization network）以减少每一个agent之间的数据交互。传统的中心化学习（centralized learning）需要每一个agent都产生一个全局性的观测，然后将这些观测上传至服务器，服务器再根据观测针对每一个agent产生策略。这样做的缺陷是，算法的复杂度极其庞大，很容易就触碰到IO墙，以至于无法满足scalable的需求。所谓scalable decision-making即是将神经网络分布在边缘端，之后让这些边缘端的AI自主与外界进行交互并于其余的agent进行合作。所以另一种学习模式，称为independent learning，每个agent通过增强学习自己的观测来做出决策，但这样的学习由于没能考虑到其他agents，其决策能力较差，所谓是一叶障目，不见泰山，并且，它的学习过程也是不稳定的。</p><img src="/2024/09/04/%E7%94%A8%E5%8F%AF%E6%89%A9%E5%B1%95%E7%9A%84%E5%A2%9E%E5%BC%BA%E5%AD%A6%E4%B9%A0%E6%9D%A5%E9%83%A8%E7%BD%B2%E5%A4%A7%E8%A7%84%E6%A8%A1%E6%8E%A7%E5%88%B6%E7%B3%BB%E7%BB%9F/2024-09-04-15-01-25.png" class=""><p>以控制交通灯为例，左图展示的中心化的控制方案将带来大规模的通信操作，这会增加信号干扰的可能性并增加计算复杂度。右图则是去中心化的控制方案，agents做出的动作只依赖于自己以及一个邻域内的其他agents的观测值。这样的方案有助于处理agents的异构问题或者包含复杂拓扑的网络。</p><img src="/2024/09/04/%E7%94%A8%E5%8F%AF%E6%89%A9%E5%B1%95%E7%9A%84%E5%A2%9E%E5%BC%BA%E5%AD%A6%E4%B9%A0%E6%9D%A5%E9%83%A8%E7%BD%B2%E5%A4%A7%E8%A7%84%E6%A8%A1%E6%8E%A7%E5%88%B6%E7%B3%BB%E7%BB%9F/2024-09-04-20-25-56.png" class=""><p>Multi-agent reinforcement learning (MARL)应用的场景包括，自动驾驶，无线通讯，多玩家游戏，电源系统与城市交通。论文强调了开发有效的通信模式和样本高效方法的重要性。这包括通过局部通信和利用模型预测控制来减少通信成本、功耗和计算复杂性。<br>使用Model-based methods可以实现比传统的控制方法更高的sample efficiency。然而现目前的MARL方法存在以下的局限性：1. 模型学习依赖于一个全局性的评判标准，对边缘设备的通信能力提出了很高的要求。2. 对Multi-agent learning的理论分析与边界估计（bounded estimation）十分匮乏。3. model learning与policy learning二者是分立的。</p><p>本文提出的方法如下</p><ol><li>$\xi$-dependent networked Markov decision processes (MDP)<br>参数$\xi$描述了系统动态中局部动作和状态对全局状态影响的程度。在一个完全独立的系统中，一个智能体的动作和状态只影响其直接邻居，而在ξ-依赖系统中，这种影响可能会传播得更远，但受到一定的限制（由ξ参数控制）。在这种模型下，每个智能体根据自己的局部观测来学习一个局部策略，目标是最大化整个系统的累积奖励。由于智能体之间存在通信限制，因此它们必须在有限的信息交换下进行协调。为了减轻系统的<strong>累积误差</strong>，该文使用了一种branching strategy将一部分的<strong>long-horizon rollouts</strong>替换为了许多short-horizon rollouts。</li></ol><p>这里的long-horizon rollouts（长视野滚动预测）指的是使用模型从一个初始状态出发，进行一系列时间步的预测，直到达到某个终止条件，如达到某个特定的时间长度或者达到某个目标状态。由于在预测过程中每一步都可能引入一定的误差，随着预测步数的增加，这些误差可能会累积，导致长期预测的准确性下降。长视野滚动预测常用于评估一个策略的长期性能，或者在模型基强化学习中用于生成训练数据，帮助优化策略。相比于只预测下一步或者短期内的未来状态，长视野滚动预测通常需要更多的计算资源，因为它需要连续模拟多个时间步。</p><p>文中采用的验证算法的场景有：</p><ol><li>协同自适应巡航控制 cooperative adaptive cruise control (CACC)在自动驾驶车辆控制的情境下，CACC 系统能够通过车辆之间的通信协调速度和车距，以提高道路安全性和交通流量。</li><li>连接自动驾驶车辆控制Connected Autonomous Vehicle Control，类似于 CACC，但可能涉及更复杂的交通场景和车辆交互，以测试算法在更广泛的交通网络中的性能。</li><li>自适应交通信号控制（Adaptive Traffic Signal Control, ATSC）：包括使用真实地图数据构建的摩纳哥和纽约的交通网络。ATSC 系统通过优化交通信号灯的时序来减少交通拥堵和提高交通效率。</li><li>IEEE 电力网格（IEEE Power Grid）：一个标准的测试平台，用于评估电力系统中的控制策略，如电压和频率的调节。</li><li>基于真实电力数据构建的电力系统（Real Power Systems）：使用葡萄牙实时电力消耗数据构建的电力系统模型，用于评估算法在实际电力系统操作中的性能。</li><li>疫情网络（Pandemic Networks）：由流行病学家基于真实的流行病动态、COVID-19 防控政策和瑞典政府的感染状态数据构建的模型，用于评估在公共卫生危机中不同控制策略的效果。<br>这些场景都拥有高达199到436个agents数目。</li></ol>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>CICC2022——DDPMnet 用pulse density来进行近似运算</title>
+      <link href="/2024/09/03/CICC2022%E2%80%94%E2%80%94DDPMnet-%E7%94%A8pulse-density%E6%9D%A5%E8%BF%9B%E8%A1%8C%E8%BF%91%E4%BC%BC%E8%BF%90%E7%AE%97/"/>
+      <url>/2024/09/03/CICC2022%E2%80%94%E2%80%94DDPMnet-%E7%94%A8pulse-density%E6%9D%A5%E8%BF%9B%E8%A1%8C%E8%BF%91%E4%BC%BC%E8%BF%90%E7%AE%97/</url>
+      
+        <content type="html"><![CDATA[<h1 id="CICC2022——DDPMnet-用pulse-density来进行近似运算"><a href="#CICC2022——DDPMnet-用pulse-density来进行近似运算" class="headerlink" title="CICC2022——DDPMnet 用pulse density来进行近似运算"></a>CICC2022——DDPMnet 用pulse density来进行近似运算</h1><p>论文名为：DDPMnet: All-Digital Pulse Density-Based DNN Architecture with 228 Gate Equivalents/MAC Unit, 28-TOPS/W and 1.5-TOPS/mm2 in 40nm,</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>ISSCC2023——仅有45个参数的VAD芯片</title>
+      <link href="/2024/09/03/ISSCC2023%E2%80%94%E2%80%94%E4%BB%85%E6%9C%8945%E4%B8%AA%E5%8F%82%E6%95%B0%E7%9A%84VAD%E8%8A%AF%E7%89%87/"/>
+      <url>/2024/09/03/ISSCC2023%E2%80%94%E2%80%94%E4%BB%85%E6%9C%8945%E4%B8%AA%E5%8F%82%E6%95%B0%E7%9A%84VAD%E8%8A%AF%E7%89%87/</url>
+      
+        <content type="html"><![CDATA[<h1 id="ISSCC2023——仅有45个参数的VAD芯片"><a href="#ISSCC2023——仅有45个参数的VAD芯片" class="headerlink" title="ISSCC2023——仅有45个参数的VAD芯片"></a>ISSCC2023——仅有45个参数的VAD芯片</h1><p>标题为A 47nW Mixed-Signal Voice Activity Detector (VAD) Featuring a Non-Volatile Capacitor-ROM, a Short-Time CNN Feature Extractor and an RNN Classiﬁer</p><p>单位为澳门大学，发表在2023年ISSCC 13.2上。<br><img src="/2024/09/03/ISSCC2023%E2%80%94%E2%80%94%E4%BB%85%E6%9C%8945%E4%B8%AA%E5%8F%82%E6%95%B0%E7%9A%84VAD%E8%8A%AF%E7%89%87/2024-09-03-11-24-49.png" class=""></p><p>这个work在memory的内部进行运算。极大程度地降低了memory access带来的功耗。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>计算机体系结构——量化研究方法笔记1</title>
+      <link href="/2024/09/01/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B01/"/>
+      <url>/2024/09/01/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B01/</url>
+      
+        <content type="html"><![CDATA[<h1 id="量化设计与分析基础与Memory-Hierarchy"><a href="#量化设计与分析基础与Memory-Hierarchy" class="headerlink" title="量化设计与分析基础与Memory Hierarchy"></a>量化设计与分析基础与Memory Hierarchy</h1><p>体系结构的创新对微处理器性能的提升已经逐渐超过了纯粹依靠工艺节点的改进带来的性能提升。</p><p><strong>并行度与并行体系总结</strong><br>数据级并行 Data-Level Parallelism（DLP）<br>任务级并行 Task-Level Parallelism（TLP）</p><h3 id="计算机设计的量化原理"><a href="#计算机设计的量化原理" class="headerlink" title="计算机设计的量化原理"></a>计算机设计的量化原理</h3><ol><li>充分利用并行<br><strong>系统级别并行</strong>：如提高在一个典型服务器基准测试（如SPECWeb或TPC-C）上的吞吐量性能，可以使用多个处理器或者多个磁盘。<br>这也被称作scalability。<br><strong>指令级别并行</strong>：以流水线为例，基本思想就是将指令执行重叠起来。<br><strong>数字级别并行</strong>：组相联（Set Associative）缓存。</li></ol><ol><li>局域性原理<br>分为时间局域性和空间局域性。我们可以利用这两个局域性预测代码近期会访问的资源并进行相应的优化。</li></ol><ol><li><p>重点关注Common Case<br>计算机设计突然关注于优化常见情形。比如处理器钟指令提取以及译码器的使用可能比乘法器频繁的多。</p></li><li><p>Amdahl定律<br>定义了加速比(speedup)，可以表示为：</p><img src="/2024/09/01/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B01/2024-09-02-16-07-49.png" class=""></li></ol><p>加速比受限于原计算机中可升级部分所占的比例。</p><ol><li>处理器性能指标：<br>每条指令时钟周期数 cycle per instruction (CPI)<br>指令数 instruction count（IC）</li></ol><h3 id="一些谬论和易犯的错误"><a href="#一些谬论和易犯的错误" class="headerlink" title="一些谬论和易犯的错误"></a>一些谬论和易犯的错误</h3><p><strong>谬论1：多处理器是万能钥匙</strong></p><p>2005年左右之所以会转向一芯多核的设计，原因是因为碰到了ILP (instruction-level-parallelism) wall与power wall。运用几个低时钟频率的核比运用一个高时钟频率的核具有更高的能效。</p><p><strong>谬论2：能够提高性能的硬件改进也可以提高能效，至少不会增大能耗</strong></p><p><strong>谬论3: 峰值性能能够反映实际观测性能</strong></p><p><strong>易犯错误1： Amdahl心碎定律</strong></p><p><strong>易犯错误2： 单点故障</strong></p><p><strong>易犯错误3： 故障检测会降低可用性</strong><br>Sun公司的Sun E3000用SRAM来构造L2 Cache，他们部署了奇偶校验但却没有部署ECC纠错码（error correcting code），导致系统虽然检测出了SRAM哪里报错但却没有办法纠正。</p><h3 id="什么是ECC纠错码"><a href="#什么是ECC纠错码" class="headerlink" title="什么是ECC纠错码"></a>什么是ECC纠错码</h3><p>以Hamming码ECC为例。</p><p>比如一个数据为0110101</p><ol><li>计算redundancy bit的个数<br>比如，一个7bit数需要有3个bit作为redundancy bit。</li><li>每个redundancy bit由数据所有bit的子集计算parity得到，比如：<img src="/2024/09/01/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B01/2024-09-02-17-26-48.png" class=""></li></ol><p>则：p1=1+1+1+0=1<br>p2=0+1+1+0=0<br>p3=0+1+1+0=0</p><p>3bit的redundancy bit可以理解为数据中各个bit的地址，编码为[p3,p2,p1]。如果p1出错，说明错误存在在地址中最低bit影响的位置，即1，3，5，7，9。这样，用3个bit就可以倒推出错误bit存在的位置。</p><p>比如第4个bit存在错误，数据变为0111101</p><p>此时：<br>p1=1+1+1+0=1<br>p2=0+1+1+0=0<br>p3=1+1+1+0=1</p><p>发现p3出错！此时可倒推得100位置，即第四个bit存在错误。之后只需要把第四个bit翻转即可得到正确的数据。</p><p>Hamming法的局限是只能对单个bit error进行纠错，但其硬件结构较为简单。</p><p>“Intel Core i7每个时钟周期可以由每个核心生成两次数据存储器引用，i7有4个核心，时钟频率为3.2GHz，除了大约128亿次128位指令引用的峰值指令要求外，每秒最多还可以生成256亿次64位数据存储器引用，总峰值带宽为409.6 GB/s。这一难以置信的高带宽是通过以下方法实现的：实现缓存的多端口和流水线；利用多级缓存，为每个核心使用独立的第一级缓存，有时也使用独立的第二级缓存；在第一级使用独立的指令与数据缓存。与其形成鲜明对比的是， DRAM 主存储器的峰值带宽只有它的6% (25 GB/s)。”</p><p>缓存块包含一个tag，指明当前的data block与哪个存储器地址相对应。</p><p><strong>组相联 set associative</strong>：set是cache中的一组block。首先一个block被映射到一个set上，其可以被放置在这个set中的任一一个位置。要查找一个block，首先由这个块的地址找到对应的set，之后再在这个set内进行并行搜索。如果一个组中有n个block，则缓存的布局称作n路组相联。</p><p>四种缓存缺失cache misses情景：</p><ol><li>强制缺失 Compulsory miss</li><li>容量缺失 Capacity miss</li><li>冲突缺失 Conflict miss</li><li>一致性缺失 Coherency miss</li></ol><p><strong>存储器平均访问时间 average memory access time = 命中时间 hit time + 缺失率 miss rate $\times$ 缺失代价 miss penalty</strong></p><p>命中时间是指在缓存中命中目标花费的时间，缺失代价是从内存中替代块的时间。</p><p><strong>存储器层次结构的36个术语</strong><br><img src="/2024/09/01/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B01/2024-09-11-14-19-15.png" class=""></p><p>如果处理器在缓存中找到了所需要的数据项，就说发生了<strong>缓存命中</strong>。如果处理器没有在缓存中找到所需要的数据项，就是发生了<strong>缓存缺失</strong>。虚拟存储器意味着一些对象可以驻存在磁盘上。地址空间通常被分为固定大小的块，称为<strong>页</strong>。在任何时候，每个页要么在主存储器中，要么在磁盘上。当处理器引用一个页中既不在缓存中也不在主存储器中的数据项时，就会发生页错误，并把整个页从磁盘移到主存储器中。由千页错误消耗的时间太长，所以它们由软件处理，处理器不会停顿。在进行磁盘访问时，处理器通常会切换到其他某一任务。从更高级别来看，缓存和主存储器在对引用局域性的依赖性方面、在大小和单个位成本等方面的关系，类似于主存储器与磁盘的相应关系。</p><p>今天的绝大多数处理器缓存为直接映射、两路组相联或四路组相联。</p><h4 id="处理器是怎样找到缓存中的块的？"><a href="#处理器是怎样找到缓存中的块的？" class="headerlink" title="处理器是怎样找到缓存中的块的？"></a>处理器是怎样找到缓存中的块的？</h4><img src="/2024/09/01/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B01/2024-09-11-15-05-32.png" class=""><p>块偏移字段从块中选择期望数据，索引字段选择组，通过对比标志字段来判断是否命中。在比较时，核对索引是多余的，存储在第0组的地址，其索引字段必须为0，否则就不能存储在第0组中。</p><h4 id="标志-tag-和索引-index-有什么区别？"><a href="#标志-tag-和索引-index-有什么区别？" class="headerlink" title="标志(tag)和索引(index)有什么区别？"></a>标志(tag)和索引(index)有什么区别？</h4><p>全相联缓存没有索引字段。因为每一个block都可以存储到缓存中的任一位置，在查找的时候，只需要比较标志位即可找到对应的block。这样做的好处是命中率较高。因为缺少了直接映射的限制，主存中的任意一个位置的block都可以存入缓存。而直接映射的缺陷就是减少了硬件判决，就算要替换也只能替换固定位置的块。而全相联或者组相联的策略，在发生缺失的时候，可以采用多种策略。例如：<strong>随机分配</strong>，<strong>最近最少使用（LRU）</strong>，<strong>先入先出（FIFO）</strong><br><img src="/2024/09/01/%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E6%96%B9%E6%B3%95%E7%AC%94%E8%AE%B01/2024-09-11-15-23-07.png" class=""></p><p>写入策略分为<strong>直写</strong>和<strong>写回</strong>。<br>写回策略的优点：修改后的缓存块仅在被替换时才被写到主存储器。如果，写入的内容立即被应用于后续的计算，则由于则部分内容不会进入存储器，存储器带宽较少，所以该策略对多处理器更具吸引力。一般而言，在多级缓存的架构中，直写策略更适合于高级缓存，而在低级缓存中使用写回策略。</p><p><strong>写入缓冲区</strong>是用于减少直写期间等待写入操作的过程。<br><strong>写入分派</strong>指在发生写入缺失时将缺失块读到缓存中，随后对其进行写入命中操作。一般写回操作应用的是<strong>写入分派</strong>策略。直写缓存应用<strong>无写入分派</strong>策略。</p><h4 id="转换旁视缓冲区-Translation-Lookaside-Buffer-TLB-的作用是什么"><a href="#转换旁视缓冲区-Translation-Lookaside-Buffer-TLB-的作用是什么" class="headerlink" title="转换旁视缓冲区 Translation Lookaside Buffer (TLB)的作用是什么?"></a>转换旁视缓冲区 Translation Lookaside Buffer (TLB)的作用是什么?</h4><p>TLB是计算机系统中用于加速虚拟地址到物理地址转换过程的一个硬件组件，是内存管理单元（MMU）中的一个重要组成部分。它的主要作用是减少CPU访问物理内存的次数，从而提高内存访问的效率。TLB的作用包括以下几点：</p><ol><li><p>快速地址转换：当CPU收到来自程序的虚拟内存地址后，首先在TLB中进行寻址。如果TLB中存放着所需的页表，则可以直接将虚拟地址转换为物理地址，避免了访问物理内存中的页表，从而加快了地址转换速度。</p></li><li><p>减少内存访问次数：引入TLB前，CPU需要至少访问两次物理内存来完成一次虚拟地址到物理地址的转换。引入TLB后，CPU可以在TLB中直接找到所需的页表数据，从而减少了内存访问次数。</p></li><li><p>提高系统性能：由于TLB的访问速度远快于主存，通过使用TLB，可以显著提高程序的执行效率，尤其是在频繁进行内存访问的应用程序中。</p></li><li><p>管理页表条目：TLB内部存放的基本单位是页表条目，这些条目对应着RAM中存放的页表条目。TLB的容量虽然有限，但它可以缓存最常访问的页表项，从而提高地址转换的效率。</p></li><li><p>处理TLB未命中：当TLB中没有对应的存放着所需的页表时，称为TLB未命中（TLB Miss）。在这种情况下，CPU需要访问内存中的页表来获取物理地址，这个过程可能会降低性能。现代处理器通常具备硬件机制来处理TLB未命中的情况，以减少对性能的影响。</p></li><li><p>支持多级页表和大页：现代处理器的TLB支持多级页表和不同大小的页面，这可以减少TLB条目的数量，提高TLB的效率。</p></li></ol><p>在体系设计中，L1 Cache倾向于使用小而简单的第一级缓存（直接映射或低相联度映射），用以缩短命中时间，并降低功率。</p><p>使用<strong>路预测技术</strong>，在缓存中另外保存了一些位，用于预测下一次缓存访问组中的路或者块，可以有效缩短命中时间。</p><p><strong>无阻塞缓存（non-blocking cache）</strong>或是<strong>无锁定缓存(lockup-free cache)</strong>允许在缺失期间继续提供缓存命中，不必因为一次cache miss而停顿。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>Madiff代码结构梳理</title>
+      <link href="/2024/08/29/Madiff%E4%BB%A3%E7%A0%81%E7%BB%93%E6%9E%84%E6%A2%B3%E7%90%86/"/>
+      <url>/2024/08/29/Madiff%E4%BB%A3%E7%A0%81%E7%BB%93%E6%9E%84%E6%A2%B3%E7%90%86/</url>
+      
+        <content type="html"><![CDATA[<h1 id="对Madiff的批评"><a href="#对Madiff的批评" class="headerlink" title="对Madiff的批评"></a>对Madiff的批评</h1><p>Madiff的创新点确实存在一些问题，工作很大一部分依赖于Ajay于2023年ICLR上发表的论文 Is Conditional Generative Modeling all you need for Decision-Making? </p><h1 id="Madiff代码结构梳理"><a href="#Madiff代码结构梳理" class="headerlink" title="Madiff代码结构梳理"></a>Madiff代码结构梳理</h1><p>在mad_mpe_tag_code_ctde_exp.yaml文件中定义了训练使用的各个参数。</p><p>其中variables定义了5个seed：</p><p>每个seed各自是什么含义？</p><p>实验使用的test dataset如下：</p><p>MPE: multi-agent particle environments (MPE)：<br>三个智能体合作完成一个共同的任务：</p><ol><li>spread, 三个agent拥有不同的初始化位置，目标是收集地图中存在的三个landmarks</li><li>Tag，三个捕食者通过合作来捕捉一个训练好的猎物，猎物跑的更快，所以需要捕食者合作来约束猎物的行进路线</li><li>World，同样是三个捕食者通过合作来捕捉一个训练好的猎物，猎物能够躲藏进地图中的森林</li></ol><p>Multi-Agent Mujoco (MA mujoco)：<br>每个独立的agent可以控制一个robot身上不同的关节并让这个robot跑的越快越好。</p><p>StarCraft Multi-Agent Challenge (SMAC)<br>多智能体星战。</p><p>Multi-Agent Trajectory Prediction (MATP)<br>每一个agent用于预测其他agent的路线。</p><p>inference的模型为SharedConvAttentionDeconv，其声明在diffuser.models.ma_temporal.py内<br>采用的Unet结构对象为TemporalUnet，其声明在diffuser.models.temporal.py内</p><p>Madiff中normalized score的计算方法为：<br>$100 \times (S-S<em>{random})/(S</em>{expert}-S_{random})$</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>ISSCC2021-2024 Emerging Sensing and Computing Technologies的文章</title>
+      <link href="/2024/08/19/ISSCC2021-2024-Emerging-Sensing-and-Computing-Technologies%E7%9A%84%E6%96%87%E7%AB%A0/"/>
+      <url>/2024/08/19/ISSCC2021-2024-Emerging-Sensing-and-Computing-Technologies%E7%9A%84%E6%96%87%E7%AB%A0/</url>
+      
+        <content type="html"><![CDATA[<h1 id="ISSCC2021-2025-Emerging-Sensing-and-Computing-Technologies的文章"><a href="#ISSCC2021-2025-Emerging-Sensing-and-Computing-Technologies的文章" class="headerlink" title="ISSCC2021-2025 Emerging Sensing and Computing Technologies的文章"></a>ISSCC2021-2025 Emerging Sensing and Computing Technologies的文章</h1><h2 id="ISSCC-2021"><a href="#ISSCC-2021" class="headerlink" title="ISSCC 2021"></a>ISSCC 2021</h2><p>2021年的session 12名为Innovation in Low-Power and Secure IoT，包含3篇文章。</p><h4 id="A-148nW-General-Purpose-Event-Driven-Intelligent-Wake-Up-Chip-for-AIoT-Devices-Using-Asynchronous-Spike-Based-Feature-Extractor-and-Convolutional-Neural-Network"><a href="#A-148nW-General-Purpose-Event-Driven-Intelligent-Wake-Up-Chip-for-AIoT-Devices-Using-Asynchronous-Spike-Based-Feature-Extractor-and-Convolutional-Neural-Network" class="headerlink" title="A 148nW General-Purpose Event-Driven Intelligent Wake-Up Chip for AIoT Devices Using Asynchronous Spike-Based Feature Extractor and Convolutional Neural Network"></a>A 148nW General-Purpose Event-Driven Intelligent Wake-Up Chip for AIoT Devices Using Asynchronous Spike-Based Feature Extractor and Convolutional Neural Network</h4><p>来自北京大学黄如，叶乐团队</p><p>Stage I: always-on clock-free level-crossing ADC (LC-ADC)</p><p>Stage II: time-domain instant rate of change (IROC)<br><strong>异步电路</strong><br><strong>Spike-based</strong></p><p>Stage III: Convolutional Neural Network with power gating</p><p>使用了一个frame generator来包含各种IOT事件，它把detection window根据任务类型划分为N个frame。越复杂需要的每个window需要的frame越多，文中举的例子：KWS任务需要9个frame，而ECG任务需要8个frame。</p><p>该工作支持对CNN的weight进行re-training来提高Hit rate。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>内向思考</title>
+      <link href="/2024/08/19/%E5%86%85%E5%90%91%E6%80%9D%E8%80%83/"/>
+      <url>/2024/08/19/%E5%86%85%E5%90%91%E6%80%9D%E8%80%83/</url>
+      
+        <content type="html"><![CDATA[<h1 id="内向思考"><a href="#内向思考" class="headerlink" title="内向思考"></a>内向思考</h1><p>独处能使思维更加有条理，而这反过来可以促进逻辑分析的能力。</p><p>萨拉会记录下让自己产生情绪波动的事情，把每个事项都用彩色标注。绿色是感觉良好的，红色是感觉不好的，而紫色的则意味着她会以不同的方式进行处理。</p><p>领导者应该努力让自己头脑清晰，不仅要清楚了解所面临的挑战，也要清晰地认识自我，知道自己有哪些强项和不足。</p><p>应该警惕自我意识，这是一种外向的思维，会导致装腔作势，让我们以别人的看法来做出决定。</p><p>四周重峦雄伟，渺小的自我融入进了伟岸崇高的自然。你感到离上帝很近。我其实不是一个特别虔诚的信徒，但我感受到了一种欲望，对神祇的渴望。</p><p>“把军队送去战场之前，艾森豪威尔每次都尽力确定逻辑分析已经“谨慎准确地完成了”。</p><p>顿悟是信息、直觉和你最高价值观的碰撞。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>ASIC实现一个简单数字模块的流程</title>
+      <link href="/2024/08/06/ASIC%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E6%95%B0%E5%AD%97%E6%A8%A1%E5%9D%97%E7%9A%84%E6%B5%81%E7%A8%8B/"/>
+      <url>/2024/08/06/ASIC%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E6%95%B0%E5%AD%97%E6%A8%A1%E5%9D%97%E7%9A%84%E6%B5%81%E7%A8%8B/</url>
+      
+        <content type="html"><![CDATA[<h1 id="ASIC实现一个简单数字模块的流程"><a href="#ASIC实现一个简单数字模块的流程" class="headerlink" title="ASIC实现一个简单数字模块的流程"></a>ASIC实现一个简单数字模块的流程</h1><h2 id="数字模块功耗分析"><a href="#数字模块功耗分析" class="headerlink" title="数字模块功耗分析"></a>数字模块功耗分析</h2><p>primetime报告toggle rate的命令：<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">report_switching_activity -average_activity -hierarchy -based_clock $clk_name</span><br></pre></td></tr></table></figure></p><h2 id="innovus后端"><a href="#innovus后端" class="headerlink" title="innovus后端"></a>innovus后端</h2><p>在PR文件夹下创建以下子文件夹，并将default.view文件拷贝进来。<br><img src="/2024/08/06/ASIC%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E6%95%B0%E5%AD%97%E6%A8%A1%E5%9D%97%E7%9A%84%E6%B5%81%E7%A8%8B/2024-08-06-14-15-29.png" class=""></p><p>简单修改init_design.tcl中的部分。<br><img src="/2024/08/06/ASIC%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E6%95%B0%E5%AD%97%E6%A8%A1%E5%9D%97%E7%9A%84%E6%B5%81%E7%A8%8B/2024-08-06-16-20-32.png" class=""></p><h1 id="pcell与pycell的区别"><a href="#pcell与pycell的区别" class="headerlink" title="pcell与pycell的区别"></a>pcell与pycell的区别</h1><p>在28nm库的technology file中有pcell与pycell两个文件夹，位置在/sec/pdk/tsmc/28n_HPCPLUS_V2103/PDK/Techfile/online/1P10M_5X2Y2R下。问题是pcell与pycell的区别是什么？</p><p><strong>答：</strong><br>从高层次上讲，Pycells 是用 Python 语言编写的参数化的标准单元库，这些需要来自 Ciranova（现在是 Synopsys）的技术，并且不被 Cadence 支持。而 PCells 是用 SKILL（或面向对象的 SKILL，称为 SKILL++）编写的，并且得到 Cadence 的支持。PCells 在 Cadence 工具和工具流程中经过了充分的测试。</p><p>无论使用 Pycells 还是 SKILL Pcells，大多数代工厂的 PDKs 都会努力确保无论使用哪一种，布局都是相同的。但使用Pycells存在可能的风险，可能某些功能变得不可用（例如 modgens、placement、在 Virtuoso 内部运行的 PVS等），对于virtuoso streamin而言，建议使用pcell。</p><p>streamIn<br><img src="/2024/08/06/ASIC%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E6%95%B0%E5%AD%97%E6%A8%A1%E5%9D%97%E7%9A%84%E6%B5%81%E7%A8%8B/2024-08-06-15-04-32.png" class=""><br>注意以下四个点：</p><ol><li>由于standard cell被merge了进来，可以选择创建一个新库，然后进行streamIn，streamIn成功后再进行verilogIn</li><li>layermap文件的选择，一般该文件存放在/sec/pdk/tsmc/28n_HPCPLUS_V2103/PDK/Techfile/online/1P10M_5X2Y2R/pcell下。</li><li>在More Options中选择Replace [] With &lt;&gt;</li><li>如果pin过于密集，可以在geometry中调低scale text height。</li></ol><p>接下来在power ring上手动打上VDD与VSS的lable<br><img src="/2024/08/06/ASIC%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E6%95%B0%E5%AD%97%E6%A8%A1%E5%9D%97%E7%9A%84%E6%B5%81%E7%A8%8B/2024-08-06-15-10-57.png" class=""></p><p>VerilogIn<br><img src="/2024/08/06/ASIC%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E6%95%B0%E5%AD%97%E6%A8%A1%E5%9D%97%E7%9A%84%E6%B5%81%E7%A8%8B/2024-08-06-15-08-26.png" class=""><br>注意在Global Net Options将Power/Ground Net Name改为VDDD与VSSD，这一步是为了把VDD与VSS后的感叹号去掉。<br><img src="/2024/08/06/ASIC%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E6%95%B0%E5%AD%97%E6%A8%A1%E5%9D%97%E7%9A%84%E6%B5%81%E7%A8%8B/2024-08-06-15-08-43.png" class=""></p><p>同样，手动添加VDD与VSS的pin。<br>最后跑LVS，完成模块的部署。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>扩散模型除了用于生成图片还能用在什么地方</title>
+      <link href="/2024/08/05/%E6%89%A9%E6%95%A3%E6%A8%A1%E5%9E%8B%E9%99%A4%E4%BA%86%E7%94%A8%E4%BA%8E%E7%94%9F%E6%88%90%E5%9B%BE%E7%89%87%E8%BF%98%E8%83%BD%E7%94%A8%E5%9C%A8%E4%BB%80%E4%B9%88%E5%9C%B0%E6%96%B9/"/>
+      <url>/2024/08/05/%E6%89%A9%E6%95%A3%E6%A8%A1%E5%9E%8B%E9%99%A4%E4%BA%86%E7%94%A8%E4%BA%8E%E7%94%9F%E6%88%90%E5%9B%BE%E7%89%87%E8%BF%98%E8%83%BD%E7%94%A8%E5%9C%A8%E4%BB%80%E4%B9%88%E5%9C%B0%E6%96%B9/</url>
+      
+        <content type="html"><![CDATA[<h1 id="Collaborative-Computing-in-Multi-UAV-MEC-Network-Optimization"><a href="#Collaborative-Computing-in-Multi-UAV-MEC-Network-Optimization" class="headerlink" title="Collaborative Computing in Multi UAV MEC Network Optimization"></a>Collaborative Computing in Multi UAV MEC Network Optimization</h1><p>Multi-UAV collaborative path planing.</p><p>为什么不能用增强学习的方法？因为以下三点风险：<br>GIoT的设备会动态地加入或者离开网络。<br>恶劣的用户会上传低质量甚至有害的数据。<br>甚至会发动逆模型攻击：即通过训练好的模型来提取训练数据。</p><h1 id="MADIFF-Offline-Multi-agent-Learning-with-Diffusion-Models"><a href="#MADIFF-Offline-Multi-agent-Learning-with-Diffusion-Models" class="headerlink" title="MADIFF: Offline Multi-agent Learning with Diffusion Models"></a>MADIFF: Offline Multi-agent Learning with Diffusion Models</h1><p>MADIFF is the ffrst diffusion-based multi-agent learning framework, which behaves as both a decentralized policy and a centralized controller.</p><p>下面这句话说明了为什么diffusion model用于多智能体非监督式学习的创新点。<br>Despite its effectiveness in single-agent learning, applying the generative framework to multi-agent(MA) decision tasks remains uncertain. This is due to the need for modeling interactions and coordination among agents, while each agent makes their decisions in a decentralized manner.</p><p>作者将多智能体学习multi-agent learning (MAL)问题进行如下阐述：<br>In particular, we formulate MAL as conditional generative modeling<br>problems, where the target is to generate each agent’s trajectory, conditioned on the information of all agents (centralized case) or each agent (decentralized case). </p><p>整个模型的运行方式为：首先通过offline-trained DM预测并规划智能体的运行路线，接着让$t+1$与$t$时刻通过逆动力学模型得到在$t$时刻的动作（或是控制信号变量组成的矩阵）。</p><p>Diffusion的过程受控于当前系统观测的状态obseved state与information。这里的information包含observations，rewards与constraints。</p><img src="/2024/08/05/%E6%89%A9%E6%95%A3%E6%A8%A1%E5%9E%8B%E9%99%A4%E4%BA%86%E7%94%A8%E4%BA%8E%E7%94%9F%E6%88%90%E5%9B%BE%E7%89%87%E8%BF%98%E8%83%BD%E7%94%A8%E5%9C%A8%E4%BB%80%E4%B9%88%E5%9C%B0%E6%96%B9/2024-08-20-15-43-19.png" class=""><p>另外本文提出的方案与传统的不同之处在于。传统的多智能体控制方案是中心化的。每一个智能体只单独做出决策，不需要与其他智能体进行通信。而本文提出的方案称为decentralized execution with teammate modeling。智能体i能够根据当前的观测预测其他智能体的下一步动作。</p><p>文章进行的实验总结如下：</p><p>目标：Modeling the complex interactions among cooperative agents<br>其包含两个小目标：</p><ol><li>是否能够生成高质量的多智能体行进路线</li></ol>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>怎样使用git mergetool</title>
+      <link href="/2024/07/24/%E6%80%8E%E6%A0%B7%E4%BD%BF%E7%94%A8git-mergetool/"/>
+      <url>/2024/07/24/%E6%80%8E%E6%A0%B7%E4%BD%BF%E7%94%A8git-mergetool/</url>
+      
+        <content type="html"><![CDATA[<h1 id="怎样使用git-mergetool"><a href="#怎样使用git-mergetool" class="headerlink" title="怎样使用git mergetool"></a>怎样使用git mergetool</h1><img src="/2024/07/24/%E6%80%8E%E6%A0%B7%E4%BD%BF%E7%94%A8git-mergetool/2024-07-24-14-08-42.png" class=""><p>当把远端的工程pull到本地上时，由于之前不小心commit过一次，导致版本出现冲突。此时git会报错，并且本地文件夹后会出现(master|MERGING)的字样。同时产生版本冲突的文件会出现以下字符：</p><img src="/2024/07/24/%E6%80%8E%E6%A0%B7%E4%BD%BF%E7%94%A8git-mergetool/2024-07-24-14-20-44.png" class=""><p>此时，我们可以使用git mergetool来解决冲突。</p><p>工具启动后界面如下图所示：<br><img src="/2024/07/24/%E6%80%8E%E6%A0%B7%E4%BD%BF%E7%94%A8git-mergetool/2024-07-24-14-26-17.png" class=""></p><p>各区域表示的意义如下：<br>Local：本地目录下的branch<br>Base: 本地与远端各自进行修改前保存的branch<br>Remote: github远端目录下保存的branch<br>Merged: 各个branch进行merge的结果</p><p>将光标移动到对应的&lt;&lt;&lt;&lt;&lt; HEAD下面，运行下面的指令可以直接对代码进行修改。</p><p>如果要采用remote的修改：<br><code>:diffg RE</code></p><p>如果要采用base的修改：<br><code>:diffg BA</code></p><p>如果要采用base的修改：<br><code>:diffg LO</code></p><p>之后使用命令</p><p><code>git commit -am &quot;fixing MERGE&quot;</code></p><p><code>git pull origin main</code></p><p>即可完成merging</p><h2 id="使用scp向远端服务器传输代码"><a href="#使用scp向远端服务器传输代码" class="headerlink" title="使用scp向远端服务器传输代码"></a>使用scp向远端服务器传输代码</h2><p>scp -r ./Digital_Bridge_test_arg ftan@inlsrv2:/home/ftan/Desktop</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>Hydra库的使用</title>
+      <link href="/2024/07/15/Hydra%E5%BA%93%E7%9A%84%E4%BD%BF%E7%94%A8/"/>
+      <url>/2024/07/15/Hydra%E5%BA%93%E7%9A%84%E4%BD%BF%E7%94%A8/</url>
+      
+        <content type="html"><![CDATA[<h1 id="Hydra库的使用"><a href="#Hydra库的使用" class="headerlink" title="Hydra库的使用"></a>Hydra库的使用</h1><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">hydra.utils.instantiate(&#x27;_target_&#x27;: &#x27;torchmetrics.Accuracy&#x27;)</span><br></pre></td></tr></table></figure><p>该函数用于通过字符串来示例化一个对象。以此句话为例，其目的是为了实例化一个torchmetrics.Accuracy类。但实例化此类需要指定task参数，这个参数为’binary’, ‘multiclass’或是’multilabel’。参见下图：</p><img src="/2024/07/15/Hydra%E5%BA%93%E7%9A%84%E4%BD%BF%E7%94%A8/2024-07-15-21-31-24.png" class=""><p>直接执行该语句，效果相当于：<br><code>metrics = torchmetrics.Accuracy()</code><br>它将报出如下的错误：<br><img src="/2024/07/15/Hydra%E5%BA%93%E7%9A%84%E4%BD%BF%E7%94%A8/2024-07-15-21-33-33.png" class=""></p><p>其原因是，老版本的pytorch中的accuracy函数不需要指定task，然而新版本的由于更新，是需要格外指定一个’task’参数的。</p><p>修改后的metric初始化代码为：<br><code>metrics = torchmetrics.Accuracy(task=&quot;multiclass&quot;, num_classes=1000)</code></p><p>修改为用hydra实例化对象的写法为：</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">hydra.utils.instantiate(&#x27;_target_&#x27;: &#x27;torchmetrics.Accuracy&#x27;, &#x27;task&#x27;: &quot;multiclass&quot;, &#x27;num_classes&#x27;: 1000)</span><br></pre></td></tr></table></figure>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>ISSCC2024——C-Transformer怎样解决过高的片外读取问题</title>
+      <link href="/2024/07/13/ISSCC2024%E2%80%94%E2%80%94C-Transformer%E6%80%8E%E6%A0%B7%E8%A7%A3%E5%86%B3%E8%BF%87%E9%AB%98%E7%9A%84%E7%89%87%E5%A4%96%E8%AF%BB%E5%8F%96%E9%97%AE%E9%A2%98/"/>
+      <url>/2024/07/13/ISSCC2024%E2%80%94%E2%80%94C-Transformer%E6%80%8E%E6%A0%B7%E8%A7%A3%E5%86%B3%E8%BF%87%E9%AB%98%E7%9A%84%E7%89%87%E5%A4%96%E8%AF%BB%E5%8F%96%E9%97%AE%E9%A2%98/</url>
+      
+        <content type="html"><![CDATA[<h1 id="ISSCC2024——C-Transformer怎样解决过高的片外读取问题"><a href="#ISSCC2024——C-Transformer怎样解决过高的片外读取问题" class="headerlink" title="ISSCC2024——C-Transformer怎样解决过高的片外读取问题"></a>ISSCC2024——C-Transformer怎样解决过高的片外读取问题</h1><img src="/2024/07/13/ISSCC2024%E2%80%94%E2%80%94C-Transformer%E6%80%8E%E6%A0%B7%E8%A7%A3%E5%86%B3%E8%BF%87%E9%AB%98%E7%9A%84%E7%89%87%E5%A4%96%E8%AF%BB%E5%8F%96%E9%97%AE%E9%A2%98/2024-07-13-12-56-17.png" class=""><p>大型语言模型（LLM）的过高的片外读取数目消耗了非常多的系统功耗。本文第一个采取的措施叫Big-little Network。该方法在Transformer网络上的应用详见UC Berkeley的论文 <strong>“Big Little Transformer Decoder”</strong></p><p>Transformer decoder需要模型反复从片外读入weight矩阵，以及之前生成的tokens的key与value，这导致Transformer decoder的性能被memory bottleneck限制的非常严重。该段论述详见：<br><img src="/2024/07/13/ISSCC2024%E2%80%94%E2%80%94C-Transformer%E6%80%8E%E6%A0%B7%E8%A7%A3%E5%86%B3%E8%BF%87%E9%AB%98%E7%9A%84%E7%89%87%E5%A4%96%E8%AF%BB%E5%8F%96%E9%97%AE%E9%A2%98/2024-07-13-16-01-49.png" class=""></p><p>下图展示了Big Little Transformer Decoder的工作流程。<br><img src="/2024/07/13/ISSCC2024%E2%80%94%E2%80%94C-Transformer%E6%80%8E%E6%A0%B7%E8%A7%A3%E5%86%B3%E8%BF%87%E9%AB%98%E7%9A%84%E7%89%87%E5%A4%96%E8%AF%BB%E5%8F%96%E9%97%AE%E9%A2%98/2024-07-13-16-04-27.png" class=""></p><p>Big Little Decoder包含两个不同大小的模型合作生成文本。小模型会利用<strong>fallback policy</strong>决定什么时候把workload转到大模型上去。即如果小模型预测出的下一个单词的probability小于一个阈值，那么这个单词将被大模型重新进行预测。同样，大模型会用rollback policy决定什么时候要出来修正小模型的不精确的结果。<br><img src="/2024/07/13/ISSCC2024%E2%80%94%E2%80%94C-Transformer%E6%80%8E%E6%A0%B7%E8%A7%A3%E5%86%B3%E8%BF%87%E9%AB%98%E7%9A%84%E7%89%87%E5%A4%96%E8%AF%BB%E5%8F%96%E9%97%AE%E9%A2%98/2024-07-13-16-42-42.png" class=""></p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 芯片设计 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 数字加速器 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>科学史</title>
+      <link href="/2024/07/11/%E7%A7%91%E5%AD%A6%E5%8F%B2/"/>
+      <url>/2024/07/11/%E7%A7%91%E5%AD%A6%E5%8F%B2/</url>
+      
+        <content type="html"><![CDATA[<h1 id="科学史"><a href="#科学史" class="headerlink" title="科学史"></a>科学史</h1><p>数学实践上的巴比伦和埃及所熟知的技巧变成了希腊的假设-证明模式</p><p>伽利略开创的实验方法与实验室模式。</p><p>1671年，法国天文学家里歇尔到圭亚那首府卡宴观测火星大冲，发现所带的钟每天慢了2分28秒，他将钟摆调短2.8毫米，才能重新校准时间，但1673年回到巴黎后必须把摆长再度复原。牛顿在1687年出版的开山巨著《自然哲学的数学原理》中以此为据，判定地球自转的离心力引起赤道膨胀两极扁平，因此成为一个“椭球”。赤道附近的圭亚那比北半球的法国距离地心更远，所以钟摆受到重力减小而频率变慢。巴黎天文台台长卡西尼的认识恰恰相反，他根据笛卡儿学派的信条和自己的测量，宣称地球形状是赤道收缩两极伸长。伏尔泰大为感慨：“巴黎说像西瓜，伦敦说像橘子。”地球的形状究竟如何，成为事关重力理论和航海实践的大问题。法国国王路易十五决定派出两个科考队，远赴北极圈内的拉普兰和赤道附近的秘鲁进行测量，通过大地曲率的对照，彻底了断这桩举世瞩目的科学公案。</p><p>19世纪上半叶，丹麦因为哥本哈根学派的缘故，曾有一段时期成为全世界物理学者的朝圣国。玻尔、海森堡、泡利以及狄拉克等都是这个学派的主要成员。哥本哈根学派对于量子力学的创立和发展做出了杰出的贡献。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>帝3——美国流程</title>
+      <link href="/2024/07/11/%E5%B8%9D3%E2%80%94%E2%80%94%E7%BE%8E%E5%9B%BD%E6%B5%81%E7%A8%8B/"/>
+      <url>/2024/07/11/%E5%B8%9D3%E2%80%94%E2%80%94%E7%BE%8E%E5%9B%BD%E6%B5%81%E7%A8%8B/</url>
+      
+        <content type="html"><![CDATA[<h1 id="5马高地流"><a href="#5马高地流" class="headerlink" title="5马高地流"></a>5马高地流</h1><p>开局将军修贸易站，一卡发中国移民。10农用<strong>宾夕法尼亚州</strong>上本，中国移民再修一个贸易战，加上技能叫的贸易站，总计三贸易站。二卡发高级酒馆。上本时间约为<strong>两分30秒</strong>。上本期间全员伐木，200木起一个酒馆。</p><p><strong>4分钟</strong>完成上本。<br><strong>殖民时代</strong>: 军事马车起一个马厩，一卡弗吉尼亚大会，起1个教堂。之后发阿肯色州前哨，用三马车造两个酒馆，一个教堂。<strong>教堂研究金流科技</strong>，之后用中国移民再造一个贸易站。此时由于由四贸易站，三酒馆与两个教堂。用400金可以发出10个苏格兰高地兵，同时开始出轻骑兵。<br>三卡发700木，紧接着4卡可以发鲨鱼弓箭手或者原住民条约。</p><p><strong>7分30秒</strong>10高地+5轻骑兵+几个亡命散兵冲家！</p><p>该例程变体为，可以选择不出马，教堂持续出间谍，用于对对面单位进行减速。</p><h1 id="三金流"><a href="#三金流" class="headerlink" title="三金流"></a>三金流</h1><p>开局起房子并且全员打猎，一卡发资本主义。12农宾夕法尼亚州上殖民。上时代期间全员采金，采到300金发荷兰移民，之后起市场，研究猎狗。<br>时代2军事人力车变兵营/马厩，留3农即可保证火枪或者马刷满，刷马的话可以等马厩造好后等20秒。时代2一卡发费城会议，之后立即研究教堂金流科技。</p><p>如果压力不大，下一张发汉密尔顿经济血，买木起第二个教堂。<br>如果需要留殖民，则保持出兵的同时发700木。建造兵营与两个房子，然后发鲨齿弓箭手。</p><p>对付阿兹特克列车，俄罗斯或者墨西哥下加利福尼亚革命，一卡直接700木，然后二卡发鲨鱼弓箭手，这样才能在6分半的时候用15火枪手，5民兵以及12鲨鱼弓箭手守家，否则就很容易寄掉。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>评测multi-modal task的benchmark</title>
+      <link href="/2024/07/11/%E8%AF%84%E6%B5%8Bmulti-modal-task%E7%9A%84benchmark/"/>
+      <url>/2024/07/11/%E8%AF%84%E6%B5%8Bmulti-modal-task%E7%9A%84benchmark/</url>
+      
+        <content type="html"><![CDATA[<h1 id="评测multi-modal-task的dataset与benchmark"><a href="#评测multi-modal-task的dataset与benchmark" class="headerlink" title="评测multi-modal task的dataset与benchmark"></a>评测multi-modal task的dataset与benchmark</h1><h2 id="LLaVA-images与ALLaVa"><a href="#LLaVA-images与ALLaVa" class="headerlink" title="LLaVA images与ALLaVa"></a>LLaVA images与ALLaVa</h2><p>LLaVA全称为Large Language and Vision Assistant。LLaVa images包含595K张image-text对。ALLaVa进一步使用高质量的训练数据（high-quality training data）可以在一个轻量化的模型上实现与大型vision-language model(LVLM)近似的表现。他们主要作为LVLM的pretrain训练数据。</p><h2 id="MathVista"><a href="#MathVista" class="headerlink" title="MathVista"></a>MathVista</h2><p>其全称为<strong>Math</strong>ematical reasoning benchmark in <strong>Vis</strong>ual contexts，其在2024年的ICLR上提出。其目标主要是用于检验multi-modal模型的数学推理能力。其包含6141个样本。</p><p>表现最好的模型是GPT-4V，取得了49.9%的平均精度，而人类测试者取得的成绩是65%。</p><p>文中列出了数学推理能力对于模型的重要意义，其目标是满足解决教学中的问题、对统计数据进行有逻辑地整理甚至辅助科研等等的需求。<br><img src="/2024/07/11/%E8%AF%84%E6%B5%8Bmulti-modal-task%E7%9A%84benchmark/2024-07-11-16-19-57.png" class=""></p><p>它集中解决5类问题：</p><ol><li>Figure Question Answering (FQA)</li><li>Geometry Problem Solving (GPS)</li><li>Math Word Problem (MWP)</li><li>Textbook Question Answering (TQA)</li><li>Visual Question Answering (VQA)</li></ol><p>其中的一些例子为：<br><img src="/2024/07/11/%E8%AF%84%E6%B5%8Bmulti-modal-task%E7%9A%84benchmark/2024-07-12-10-52-45.png" class=""></p><p>模型的数学推理能力又可细分为以下七个标准，分别是算术推理(ARI)，统计推理(STA)，代数推理(ALG)，几何推理(GEO)，数学常识(NUM)，科学推理(SCI)以及逻辑推理(LOG)。<br><img src="/2024/07/11/%E8%AF%84%E6%B5%8Bmulti-modal-task%E7%9A%84benchmark/2024-07-12-11-26-20.png" class=""></p><p>各个模型在该数据集上的表现如下图所示：<br><img src="/2024/07/11/%E8%AF%84%E6%B5%8Bmulti-modal-task%E7%9A%84benchmark/2024-07-12-11-32-47.png" class=""></p><h2 id="TextVQA"><a href="#TextVQA" class="headerlink" title="TextVQA"></a>TextVQA</h2><p>该数据集用于评测模型阅读图片中的文字的能力。其包含28408张包含文字的图片以及45336个针对这些图片设计的问题。下图展示了该数据集的一些例子。</p><img src="/2024/07/11/%E8%AF%84%E6%B5%8Bmulti-modal-task%E7%9A%84benchmark/2024-07-12-12-59-24.png" class=""><p>各个模型在该数据集上的表现可以参照下表：<br><img src="/2024/07/11/%E8%AF%84%E6%B5%8Bmulti-modal-task%E7%9A%84benchmark/2024-07-12-13-02-37.png" class=""></p><h2 id="MMB"><a href="#MMB" class="headerlink" title="MMB"></a>MMB</h2><p>全称为multi-modality benchmark，其由论文 <strong>MMBench: Is Your Multi-modal Model an All-around Player?</strong> 提出。其包含3000个多选题，用于从20个不同的角度评测模型的能力。主要评测感知（perception）与推理（reasoning）两个维度的能力，具体的能力评估见下图。<br><img src="/2024/07/11/%E8%AF%84%E6%B5%8Bmulti-modal-task%E7%9A%84benchmark/2024-07-12-17-43-55.png" class=""></p><h2 id="VQAv2"><a href="#VQAv2" class="headerlink" title="VQAv2"></a>VQAv2</h2><p>全称为Visual Question Answering，包含265016张图片，每张图片至少由3个问题，每个问题有10个正确的回答以及3个模糊（可能不正确）的回答。</p><h2 id="COCO"><a href="#COCO" class="headerlink" title="COCO"></a>COCO</h2><p>全称为Common Objects in Context。该数据集包含33万张图片，这些图片主要面向object detection，segmentation与captioning三类任务。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>Scatter&amp;gather数字计算核的设计</title>
+      <link href="/2024/07/10/Scatter-gather%E6%95%B0%E5%AD%97%E8%AE%A1%E7%AE%97%E6%A0%B8%E7%9A%84%E8%AE%BE%E8%AE%A1/"/>
+      <url>/2024/07/10/Scatter-gather%E6%95%B0%E5%AD%97%E8%AE%A1%E7%AE%97%E6%A0%B8%E7%9A%84%E8%AE%BE%E8%AE%A1/</url>
+      
+        <content type="html"><![CDATA[<h1 id="Scatter-amp-gather数字计算核的设计"><a href="#Scatter-amp-gather数字计算核的设计" class="headerlink" title="Scatter&amp;gather数字计算核的设计"></a>Scatter&amp;gather数字计算核的设计</h1><h2 id="ISSCC2024-20-8-SpaceMate的内存管理单元设计"><a href="#ISSCC2024-20-8-SpaceMate的内存管理单元设计" class="headerlink" title="ISSCC2024 20.8 SpaceMate的内存管理单元设计"></a>ISSCC2024 20.8 SpaceMate的内存管理单元设计</h2><img src="/2024/07/10/Scatter-gather%E6%95%B0%E5%AD%97%E8%AE%A1%E7%AE%97%E6%A0%B8%E7%9A%84%E8%AE%BE%E8%AE%A1/2024-07-10-16-10-05.png" class=""><p>Space-Mate面向的是neural radiance ﬁelds<br>(NeRF)-based dense simultaneous localization and mapping（SLAM）算法</p><p>由于其采用了Sparse Mixture-of-Experts的算法，每次inference只调用神经网络中的一小部分神经元（被称为expert）。计算核需要根据一个decision map（DMAP）来选择哪些experts参于计算。其计算核被称为Expert decision SIMD unit，简称为EDSU。</p><img src="/2024/07/10/Scatter-gather%E6%95%B0%E5%AD%97%E8%AE%A1%E7%AE%97%E6%A0%B8%E7%9A%84%E8%AE%BE%E8%AE%A1/2024-07-10-19-05-04.png" class="">]]></content>
+      
+      
+      <categories>
+          
+          <category> 芯片设计 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 数字加速器 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>帝3——西班牙与阿兹特克，印加帝国流程</title>
+      <link href="/2024/07/07/%E5%B8%9D3%E2%80%94%E2%80%94%E8%A5%BF%E7%8F%AD%E7%89%99%E6%B5%81%E7%A8%8B/"/>
+      <url>/2024/07/07/%E5%B8%9D3%E2%80%94%E2%80%94%E8%A5%BF%E7%8F%AD%E7%89%99%E6%B5%81%E7%A8%8B/</url>
+      
+        <content type="html"><![CDATA[<h1 id="西班牙与阿兹特克流程"><a href="#西班牙与阿兹特克流程" class="headerlink" title="西班牙与阿兹特克流程"></a>西班牙与阿兹特克流程</h1><h2 id="殖民rush"><a href="#殖民rush" class="headerlink" title="殖民rush"></a>殖民rush</h2><p>一卡三农，二卡资本主义，15农塔金上本。上本期间起市场。二农前置，起一个前置兵营。</p><p>殖民时代，哨站前置。一卡700木，二卡长矛兵。兵营持续刷火枪，三卡兰朵武士。6分30秒冲家。</p><h2 id="西班牙收复失地运动"><a href="#西班牙收复失地运动" class="headerlink" title="西班牙收复失地运动"></a>西班牙收复失地运动</h2><h2 id="piro流"><a href="#piro流" class="headerlink" title="piro流"></a>piro流</h2><p>侦察兵上三本送4轻骑兵，发教堂卡，然后1000木教堂研究御用长戟兵。</p><p>注：防守piro就得殖民时代去烧对手的房子，然后烧教堂</p><h2 id="经典FF流程"><a href="#经典FF流程" class="headerlink" title="经典FF流程"></a>经典FF流程</h2><p>时代1造交易站，然后伐木起房子，一卡发三农，二卡发资本主义。15农塔金上本，时间大概在<strong>3分钟</strong>左右。上本期间伐木修市场，研究一级打猎与采金科技，并进一步研究二级打猎。<br>二本一卡发700金。所有农民吃肉。随后二卡发700木，可以选择起双兵营或者一兵营一马厩。留200木升级老练兰朵武士。<strong>5分40秒左右开始升级</strong>。三本选择侦察兵或者守卫官上本。</p><p><strong>七分30秒左右完成升级</strong>。一卡发西班牙大黄金。之后就开始进行枪骑兵剑盾二炮兵卡连发！</p><h1 id="阿兹特克吃海打法"><a href="#阿兹特克吃海打法" class="headerlink" title="阿兹特克吃海打法"></a>阿兹特克吃海打法</h1><p>早期把酋长和战斗祭祀一起拉出去打宝藏。<br>一卡3农，同时3农吃肉，其余农民伐木。 起一个码头后，转换为3农伐木，其余吃肉。码头持续出渔船，20农上本。上本时间大约为3分40秒左右，4分10秒左右升级完成。这期间记得伐木补一个房子。</p><p>二本后一卡发700木。然后出第二个码头，刷渔船吃海。</p><h2 id="列车流"><a href="#列车流" class="headerlink" title="列车流"></a>列车流</h2><p>阿兹特克开局有300木，用它们起一市场，一房子，一个火舞祭典，然后拉战斗祭祀去跳舞。开局设法收集50木，50金研究一级打猎。一卡三农，15农升级，选1战斗小屋升级。升时代期间5农打猎其余采金。</p><p>殖民时代，战斗小屋前置。1卡700木，造三个房子，造两轮投投，剩下的木全用于造土狼。采金够500后，二卡发玛雅盟友。这时5农伐木，其余人打猎。三卡发9投投。9投投到了的时间大约在<strong>7分钟左右</strong>，列车进家。</p><p>如果需要抢时间，比如对抗奥斯曼土耳其时，对方很可能会FF用5肉骑来挡住列车。这个时候要在玛雅盟友出来的时候第一时间冲家，城镇中心出阿兹特克侦察部队，并且出一组郊狼游击兵，大致<strong>5分40秒</strong>英雄带着5郊狼游击兵，4豹游荡武士以及12玛雅标枪手可以冲家。</p><h1 id="印加帝国打法"><a href="#印加帝国打法" class="headerlink" title="印加帝国打法"></a>印加帝国打法</h1>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>DSLogic逻辑分析仪开箱及使用体验</title>
+      <link href="/2024/07/01/DSLogic%E9%80%BB%E8%BE%91%E5%88%86%E6%9E%90%E4%BB%AA%E5%BC%80%E7%AE%B1%E5%8F%8A%E4%BD%BF%E7%94%A8%E4%BD%93%E9%AA%8C/"/>
+      <url>/2024/07/01/DSLogic%E9%80%BB%E8%BE%91%E5%88%86%E6%9E%90%E4%BB%AA%E5%BC%80%E7%AE%B1%E5%8F%8A%E4%BD%BF%E7%94%A8%E4%BD%93%E9%AA%8C/</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>用Butterfly Factorization来加速Transformer运算</title>
+      <link href="/2024/06/24/%E7%94%A8Butterfly-Factorization%E6%9D%A5%E5%8A%A0%E9%80%9FTransformer%E8%BF%90%E7%AE%97/"/>
+      <url>/2024/06/24/%E7%94%A8Butterfly-Factorization%E6%9D%A5%E5%8A%A0%E9%80%9FTransformer%E8%BF%90%E7%AE%97/</url>
+      
+        <content type="html"><![CDATA[<h1 id="用Butterfly-Factorization来加速Transformer运算"><a href="#用Butterfly-Factorization来加速Transformer运算" class="headerlink" title="用Butterfly Factorization来加速Transformer运算"></a>用Butterfly Factorization来加速Transformer运算</h1><p>主要参考论文：</p><h2 id="Pixelated-Butterfly-Simple-and-Efficient-Sparse-Training-for-Neural-Network-Models"><a href="#Pixelated-Butterfly-Simple-and-Efficient-Sparse-Training-for-Neural-Network-Models" class="headerlink" title="Pixelated Butterfly: Simple and Efficient Sparse Training for Neural Network Models"></a>Pixelated Butterfly: Simple and Efficient Sparse Training for Neural Network Models</h2><img src="/2024/06/24/%E7%94%A8Butterfly-Factorization%E6%9D%A5%E5%8A%A0%E9%80%9FTransformer%E8%BF%90%E7%AE%97/2024-07-13-13-45-05.png" class=""><h2 id="Learning-Fast-Algorithms-for-Linear-Transforms-Using-Butterfly-Factorizations"><a href="#Learning-Fast-Algorithms-for-Linear-Transforms-Using-Butterfly-Factorizations" class="headerlink" title="Learning Fast Algorithms for Linear Transforms Using Butterfly Factorizations"></a>Learning Fast Algorithms for Linear Transforms Using Butterfly Factorizations</h2><img src="/2024/06/24/%E7%94%A8Butterfly-Factorization%E6%9D%A5%E5%8A%A0%E9%80%9FTransformer%E8%BF%90%E7%AE%97/2024-07-13-13-49-39.png" class=""><h3 id="算法原理以及具体的数据流是怎样的"><a href="#算法原理以及具体的数据流是怎样的" class="headerlink" title="算法原理以及具体的数据流是怎样的?"></a>算法原理以及具体的数据流是怎样的?</h3><h3 id="算法原理在代码上是如何实现的？是否可以将该算法用于所有的矩阵乘法运算？"><a href="#算法原理在代码上是如何实现的？是否可以将该算法用于所有的矩阵乘法运算？" class="headerlink" title="算法原理在代码上是如何实现的？是否可以将该算法用于所有的矩阵乘法运算？"></a>算法原理在代码上是如何实现的？是否可以将该算法用于所有的矩阵乘法运算？</h3><p>如果所有的weight都可以用以下两种公式表示，那么activation将怎样和它们进行相乘？<br><img src="/2024/06/24/%E7%94%A8Butterfly-Factorization%E6%9D%A5%E5%8A%A0%E9%80%9FTransformer%E8%BF%90%E7%AE%97/2024-07-13-14-31-13.png" class=""><br><img src="/2024/06/24/%E7%94%A8Butterfly-Factorization%E6%9D%A5%E5%8A%A0%E9%80%9FTransformer%E8%BF%90%E7%AE%97/2024-07-13-14-31-23.png" class=""></p><h3 id="Flat-block-butterfly与Low-rank两个矩阵各自占多少的计算量？"><a href="#Flat-block-butterfly与Low-rank两个矩阵各自占多少的计算量？" class="headerlink" title="Flat block butterfly与Low-rank两个矩阵各自占多少的计算量？"></a>Flat block butterfly与Low-rank两个矩阵各自占多少的计算量？</h3><img src="/2024/06/24/%E7%94%A8Butterfly-Factorization%E6%9D%A5%E5%8A%A0%E9%80%9FTransformer%E8%BF%90%E7%AE%97/2024-07-13-13-52-06.png" class=""><p>从这句话可以看到，计算量在二者之间的分配似乎是主观选取的？</p><h3 id="该算法的局限性在哪里？"><a href="#该算法的局限性在哪里？" class="headerlink" title="该算法的局限性在哪里？"></a>该算法的局限性在哪里？</h3><p>该算法使用一个cost model来评测运算的开销。由于memory coalescing（访问一个单独的memory cell在开销上相当于访问了一整块的memory）的问题，所以一个sparse矩阵中non-zero element的分布也决定了计算这个sparse matrix所需要花费的memory access数目。所以文中提出”exploiting hardware locality is crutial to obtain speed up”。</p><h2 id="环境配置"><a href="#环境配置" class="headerlink" title="环境配置"></a>环境配置</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line">conda create -n fly python=3.8</span><br><span class="line">ssh-keygen -t rsa -b 4096 -C &quot;yc17483@umac.mo&quot;</span><br><span class="line">ssh-agent bash</span><br><span class="line">ssh-add ./.ssh/id_rsa</span><br><span class="line">ssh -T git@github.com</span><br><span class="line">git clone git@github.com:JohnsonZ-microe/fly.git</span><br><span class="line"></span><br><span class="line">pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118</span><br><span class="line"></span><br><span class="line">pip install torchtext</span><br><span class="line">pip install munch</span><br><span class="line">pip install einops</span><br><span class="line">pip install timm</span><br><span class="line">pip install hydra-core</span><br><span class="line">pip install hydra-colorlog</span><br><span class="line">pip install python-dotenv</span><br><span class="line">pip install rich</span><br><span class="line">pip install pytorch-lightning</span><br><span class="line">pip install lightning-bolts</span><br><span class="line">pip install scipy</span><br><span class="line">pip install datasets</span><br><span class="line">pip install wandb</span><br><span class="line"></span><br><span class="line">## run imagenet_preprocess</span><br><span class="line"></span><br><span class="line">mkdir -p checkpoints/t2tvit</span><br><span class="line">cd checkpoints/t2tvit</span><br><span class="line">wget https://github.com/yitu-opensource/T2T-ViT/releases/download/main/81.7_T2T_ViTt_14.pth.tar</span><br><span class="line"></span><br></pre></td></tr></table></figure><p>imagenet_preprocess之后<br><img src="image-3.png" alt="alt text"><br>数据集如上图所示，需要在train文件夹内创建一个空文件夹，如class1。</p><p>bug1:<br><img src="/2024/06/24/%E7%94%A8Butterfly-Factorization%E6%9D%A5%E5%8A%A0%E9%80%9FTransformer%E8%BF%90%E7%AE%97/2024-07-16-20-22-48.png" class=""><br><strong>解决方案：</strong><br>将所有的LightningLoggerBase换为pytorch_lightning.loggers.logger.Logger<br>bug2:<br><img src="/2024/06/24/%E7%94%A8Butterfly-Factorization%E6%9D%A5%E5%8A%A0%E9%80%9FTransformer%E8%BF%90%E7%AE%97/2024-07-16-21-45-55.png" class=""><br><strong>解决方案：</strong><br>在src.datamodules.imagenet.py中加入以下语句：<br><img src="image-1.png" alt="alt text"></p><p><img src="image-2.png" alt="alt text"></p><p>bug3:<br><img src="/2024/06/24/%E7%94%A8Butterfly-Factorization%E6%9D%A5%E5%8A%A0%E9%80%9FTransformer%E8%BF%90%E7%AE%97/2024-07-16-21-53-39.png" class=""><br><strong>解决方案：</strong><br><img src="/2024/06/24/%E7%94%A8Butterfly-Factorization%E6%9D%A5%E5%8A%A0%E9%80%9FTransformer%E8%BF%90%E7%AE%97/2024-07-16-21-56-41.png" class=""></p><p><img src="image-4.png" alt="alt text"><br>bug4:<br><img src="image-6.png" alt="alt text"><br><strong>解决方案：</strong><br>修改configs/experiment/imagenet/mixer/mixers.yaml<br><img src="image-5.png" alt="alt text"></p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>Ayaka——对attention sparsity进行低秩估计</title>
+      <link href="/2024/06/24/Ayaka%E2%80%94%E2%80%94%E5%AF%B9attention-sparsity%E8%BF%9B%E8%A1%8C%E4%BD%8E%E7%A7%A9%E4%BC%B0%E8%AE%A1/"/>
+      <url>/2024/06/24/Ayaka%E2%80%94%E2%80%94%E5%AF%B9attention-sparsity%E8%BF%9B%E8%A1%8C%E4%BD%8E%E7%A7%A9%E4%BC%B0%E8%AE%A1/</url>
+      
+        <content type="html"><![CDATA[<img src="/2024/06/24/Ayaka%E2%80%94%E2%80%94%E5%AF%B9attention-sparsity%E8%BF%9B%E8%A1%8C%E4%BD%8E%E7%A7%A9%E4%BC%B0%E8%AE%A1/2024-06-24-09-50-24.png" class=""><h1 id="Ayaka——对attention-sparsity进行低方根估计"><a href="#Ayaka——对attention-sparsity进行低方根估计" class="headerlink" title="Ayaka——对attention-sparsity进行低方根估计"></a>Ayaka——对attention-sparsity进行低方根估计</h1><p>文章名称为:<br><strong>Ayaka: A Versatile Transformer Accelerator With Low-Rank Estimation and Heterogeneous Dataflow</strong></p><p>这是清华大学团队与2024年发表在JSSC上的文章。包含以下两个feature:<br>低秩估计：通过低秩近似技术，在保证模型精度的同时，减少Transformer模型的参数数量和计算复杂度。<br>异构数据流：设计了一种灵活的异构数据流架构，能够高效地处理Transformer模型中的不同计算任务，提高硬件资源的利用率。</p><p>提到了对FFN的优化<br><img src="/2024/06/24/Ayaka%E2%80%94%E2%80%94%E5%AF%B9attention-sparsity%E8%BF%9B%E8%A1%8C%E4%BD%8E%E7%A7%A9%E4%BC%B0%E8%AE%A1/2024-06-24-10-27-18.png" class=""></p><p>测试的数据集采用了long-range arena，它包含从1K-16K token length的各个任务用来测试efficient Transformer算法在长文本下的性能。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 芯片设计 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 数字加速器 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>参会2024——Frontiers of AI Accelerators: Technologies, Circuits and Applications IV</title>
+      <link href="/2024/06/17/%E5%8F%82%E4%BC%9A2024%E2%80%94%E2%80%94Frontiers-of-AI-Accelerators-Technologies-Circuits-and-Applications-IV/"/>
+      <url>/2024/06/17/%E5%8F%82%E4%BC%9A2024%E2%80%94%E2%80%94Frontiers-of-AI-Accelerators-Technologies-Circuits-and-Applications-IV/</url>
+      
+        <content type="html"><![CDATA[<h1 id="参会2024——Frontiers-of-AI-Accelerators-Technologies-Circuits-and-Applications-IV"><a href="#参会2024——Frontiers-of-AI-Accelerators-Technologies-Circuits-and-Applications-IV" class="headerlink" title="参会2024——Frontiers of AI Accelerators: Technologies, Circuits and Applications IV"></a>参会2024——Frontiers of AI Accelerators: Technologies, Circuits and Applications IV</h1><h2 id="Opening-Remarks"><a href="#Opening-Remarks" class="headerlink" title="Opening Remarks"></a>Opening Remarks</h2><p>Prof. Tim Cheng是ACCESS（AI Chip Center for Emerging Smart Systems）实验室的Center Director</p><h3 id="Can-we-automate-accelerator-design-with-deep-learning-——-Prof-Jason-CONG-ULCA"><a href="#Can-we-automate-accelerator-design-with-deep-learning-——-Prof-Jason-CONG-ULCA" class="headerlink" title="Can we automate accelerator design with deep learning —— Prof. Jason CONG (ULCA)"></a>Can we automate accelerator design with deep learning —— Prof. Jason CONG (ULCA)</h3><h3 id="Workshop-1-Architectural-and-System-Integration-for-Efficient-Edge-AI-Computing"><a href="#Workshop-1-Architectural-and-System-Integration-for-Efficient-Edge-AI-Computing" class="headerlink" title="Workshop #1 Architectural and System Integration for Efficient Edge AI Computing"></a>Workshop #1 Architectural and System Integration for Efficient Edge AI Computing</h3><p><strong>“LLM Inference On Chip” by Prof. Hao Yu (南方科技大学)</strong></p><p>Integration of in-memory computing architecture on top of systolic cubic arrays</p><p><strong>“Reconfigurable AI Processor: Fundamental Concepts, Application, and Future Trends” by Prof. Shouyi YIN (清华大学)</strong></p><p><strong>Reconfigurable AI processor</strong><br>chip-level reconfiguration —— adjust the parallelism<br>element-level reconfiguration —— change computing precision, sparsity processing pattern</p><p><strong>“Reconfigurable Computing for Dynamic Vision Sensing in Edge Applications” by Prof. Hayden SO (香港大学)</strong></p><p>target event-based vision</p><p>ESDA is a modular system that allows customized sparse DNN Accelerators to be constructed rapidly using a set of parametrizable modules. </p><p>Exploit the underlying reconfigurable fabric of FPGAs to implement a novel asynchronously triggered spiking neural network (SNN)</p><h3 id="Public-Lecture-2-Neuro-Inspired-Edge-AI-Architectures-for-the-Internet-of-Things-Era"><a href="#Public-Lecture-2-Neuro-Inspired-Edge-AI-Architectures-for-the-Internet-of-Things-Era" class="headerlink" title="Public Lecture #2: Neuro-Inspired Edge AI Architectures for the Internet-of-Things Era"></a>Public Lecture #2: Neuro-Inspired Edge AI Architectures for the Internet-of-Things Era</h3><h3 id="Public-Lecture-3-Cross-Layer-Design-for-Enhancing-the-Resilience-of-In-Memory-Computing-to-Device-Variations"><a href="#Public-Lecture-3-Cross-Layer-Design-for-Enhancing-the-Resilience-of-In-Memory-Computing-to-Device-Variations" class="headerlink" title="Public Lecture #3: Cross-Layer Design for Enhancing the Resilience of In-Memory Computing to Device Variations"></a>Public Lecture #3: Cross-Layer Design for Enhancing the Resilience of In-Memory Computing to Device Variations</h3><h3 id="Entrepreneurship-Workshop"><a href="#Entrepreneurship-Workshop" class="headerlink" title="Entrepreneurship Workshop"></a>Entrepreneurship Workshop</h3><p><strong>“Innovation Unleashed: The Rise of Deep Tech Start-ups from Academic Roots”</strong> —— Mr. Wenlei ZHUANG (香港科技大学)</p><p><strong>“Embracing Opportunities: Fuelling the Microelectronics Ecosystem in Hong Kong”</strong> —— Dr. Carmen FUNG (香港科技园)</p><p><strong>“Era of Great Transformation - The New Opportunities of Innovation and Entrepreneurship”</strong> —— Mr. Peter WU (Sinovation Ventures 创新工场)</p><p><strong>“Meeting the Implementation Needs of AI in the Smart Manufacturing Sector”</strong> —— Mr. Yi PAN (Value Capital/Inovance Technology 汇川技术)</p><h2 id="Public-Lecture-4-Mini-Gemini-a-New-Large-Multi-Modal-Model"><a href="#Public-Lecture-4-Mini-Gemini-a-New-Large-Multi-Modal-Model" class="headerlink" title="Public Lecture #4: Mini-Gemini, a New Large Multi-Modal Model"></a>Public Lecture #4: Mini-Gemini, a New Large Multi-Modal Model</h2><p>—— Prof. Jiaya JIA</p><h3 id="Workshop-2-Hardware-Architectures-and-Designs-for-Machine-Learning-and-Beyond"><a href="#Workshop-2-Hardware-Architectures-and-Designs-for-Machine-Learning-and-Beyond" class="headerlink" title="Workshop #2: Hardware Architectures and Designs for Machine Learning and Beyond"></a>Workshop #2: Hardware Architectures and Designs for Machine Learning and Beyond</h3><p>“Design Automation for Processing-in-Memory Architectures” —— Prof. Xiaoming CHEN</p><p>“RaDe-GS: Rasterizing Depth in Gaussian Splatting” —— Prof. Ping TAN （香港科技大学）</p><p>“Stochastic Multivariate Universal-Radix Finite-State Machine: A New and Hardware-Friendly Architecture for Multivariate Nonlinear Function Approximation” —— Prof. Ngai WONG (香港大学)</p><p>在深度神经网络中，non-linearity对于捕捉input与output之间的关系至关重要。本文试图用stocastic computing的方式来节约non-linear function(比如GELU)的计算开销。</p><h2 id="Public-Lecture-5-Hardware-Design-and-the-Fairness-of-A-Neural-Network"><a href="#Public-Lecture-5-Hardware-Design-and-the-Fairness-of-A-Neural-Network" class="headerlink" title="Public Lecture #5: Hardware Design and the Fairness of A Neural Network"></a>Public Lecture #5: Hardware Design and the Fairness of A Neural Network</h2><h2 id="Workshop-3-Intelligent-Computing-from-Architecture-to-Algorithm"><a href="#Workshop-3-Intelligent-Computing-from-Architecture-to-Algorithm" class="headerlink" title="Workshop #3: Intelligent Computing, from Architecture to Algorithm"></a>Workshop #3: Intelligent Computing, from Architecture to Algorithm</h2><h2 id="Workshop-4-Hardware-Accelerated-Efficient-AI-Applications"><a href="#Workshop-4-Hardware-Accelerated-Efficient-AI-Applications" class="headerlink" title="Workshop #4: Hardware-Accelerated Efficient AI Applications"></a>Workshop #4: Hardware-Accelerated Efficient AI Applications</h2><p><strong>“Hardware/Software Optimization for Edge AI — Two Sides of a Coin” ——Dr. Giovanni ANSALONI (EPFL洛桑联邦理工学院)</strong></p><p><strong>“Adapting Magnetoresistive Memory Devices for Unconventional Computing” ——Prof. Qiming SHAO</strong></p><p><strong>“Early Timing and Power Evaluation for VLSI Design” ——Zhiyao Xie</strong></p><h1 id="一些相关的材料"><a href="#一些相关的材料" class="headerlink" title="一些相关的材料"></a>一些相关的材料</h1><h3 id="Li-Yanwei-et-al-“Mini-gemini-Mining-the-potential-of-multi-modality-vision-language-models-”"><a href="#Li-Yanwei-et-al-“Mini-gemini-Mining-the-potential-of-multi-modality-vision-language-models-”" class="headerlink" title="Li, Yanwei, et al. “Mini-gemini: Mining the potential of multi-modality vision language models.”"></a>Li, Yanwei, et al. “Mini-gemini: Mining the potential of multi-modality vision language models.”</h3><p>对于multi-modality Vision Language Models (VLMs)，学界的academic initiatives与well-established model比如GPT-4和Gemini等模型还存在很大的performance gap。他们从以下三个方面解决这个问题：1. 高分辨率visual token 2.高质量的数据 3.VLM guided generation。<br>他们介绍了一种any-to-any的paradigm，即可以将文字和图片同时作为模型的输入以及输出。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>帝3——墨西哥革命</title>
+      <link href="/2024/06/16/%E5%B8%9D3%E2%80%94%E2%80%94%E5%A2%A8%E8%A5%BF%E5%93%A5%E9%9D%A9%E5%91%BD/"/>
+      <url>/2024/06/16/%E5%B8%9D3%E2%80%94%E2%80%94%E5%A2%A8%E8%A5%BF%E5%93%A5%E9%9D%A9%E5%91%BD/</url>
+      
+        <content type="html"><![CDATA[<h1 id="帝3——墨西哥革命"><a href="#帝3——墨西哥革命" class="headerlink" title="帝3——墨西哥革命"></a>帝3——墨西哥革命</h1><h3 id="下加利福尼亚革命"><a href="#下加利福尼亚革命" class="headerlink" title="下加利福尼亚革命"></a>下加利福尼亚革命</h3><p>开局不造市场也不造贸易站，木头箱只需要捡一个，金币箱不用捡，14农上时代。一卡发公共粮食交易所，大庄园前置。上时代过程中4农伐木，为的是在上本后花250肉与木发克里奥尔人（9个西班牙火枪手）。其余农民全部打猎。城镇中心里把农民点到18个。</p><p><strong>4分15秒</strong>左右升级完成后，军事马车变为酒馆。一卡发克里奥尔人，先去对手家里进行一波骚扰，二卡可以考虑发原住民条约。之后所有农民往前线拉，同时进行<strong>下加利福尼亚革命</strong>。<strong>所有农民变为军事冒险家，同时送三个军事马车</strong>，此时时间在<strong>6分30秒</strong>左右。</p><img src="/2024/06/16/%E5%B8%9D3%E2%80%94%E2%80%94%E5%A2%A8%E8%A5%BF%E5%93%A5%E9%9D%A9%E5%91%BD/2024-06-16-21-36-57.png" class=""><p>两个军事马车修建原住民交易站，之后原住民条约即可生效，送来一批土著兵。上本之后可以发行者帮派补充兵力，或是发600金。</p><h2 id="打法2"><a href="#打法2" class="headerlink" title="打法2"></a>打法2</h2><p>开局起一个贸易站，<strong>2分</strong>左右以10农上时代，一卡发公共粮食交易，大庄园前置。上时代期间，吃够500肉，之后所有农采金。<strong>3分30秒</strong>左右升级完成，军事马车变为酒馆。二本一卡发700木。理想情况下，<strong>4分10秒</strong>开启下加利福尼亚革命。最好三个马车全部变为贸易站。同时用200肉，200木升级贸易路线。</p><p>350肉木金</p><p>补经济的话，可以一卡发工厂，二卡发细流经济，之后酒馆保持出亡命单位，消耗对面。三卡发猎枪，送3个强盗与3个牲畜盗贼，此时大概有18个强盗，3个牲畜盗贼，10名军事冒险家，<strong>7分30秒</strong>打出一拳。</p><h3 id="里奥格兰德革命"><a href="#里奥格兰德革命" class="headerlink" title="里奥格兰德革命"></a>里奥格兰德革命</h3><img src="/2024/06/16/%E5%B8%9D3%E2%80%94%E2%80%94%E5%A2%A8%E8%A5%BF%E5%93%A5%E9%9D%A9%E5%91%BD/2024-06-16-21-44-54.png" class=""><p>一本大庄园前置，二卡发教堂工程。圣路易斯波托西州上三本。大教堂可以使用500金加速上三本时间。</p><h2 id="FF"><a href="#FF" class="headerlink" title="FF"></a>FF</h2><p>塔巴斯科州升级。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>6月14日雷雨中的午餐</title>
+      <link href="/2024/06/14/6%E6%9C%8814%E6%97%A5%E5%A4%A7%E9%9B%A8%E4%B8%AD%E7%9A%84%E5%8D%88%E9%A4%90/"/>
+      <url>/2024/06/14/6%E6%9C%8814%E6%97%A5%E5%A4%A7%E9%9B%A8%E4%B8%AD%E7%9A%84%E5%8D%88%E9%A4%90/</url>
+      
+        <content type="html"><![CDATA[<h1 id="6月14日雷雨中的午餐"><a href="#6月14日雷雨中的午餐" class="headerlink" title="6月14日雷雨中的午餐"></a>6月14日雷雨中的午餐</h1><h4 id="（本故事采样于真实的交谈，部分文字由ChatGPT补充）"><a href="#（本故事采样于真实的交谈，部分文字由ChatGPT补充）" class="headerlink" title="（本故事采样于真实的交谈，部分文字由ChatGPT补充）"></a>（本故事采样于真实的交谈，部分文字由ChatGPT补充）</h4><p>夏初的中午，空气仿佛被水汽泡胀得沉重。又是台风天，窗外雷声滚滚，雨水泼天而下，像是上天在清洗整个校园。电子系的实验室窗玻璃上挂满了雨珠，屋内却闷热不堪，唯一的风来自角落那台呼哧呼哧喘着气的落地扇。</p><p>几位博士生聚在休息室，勉强挤出一点空间，各自拆着外卖盒。又是乌鸡米线，空气中弥漫着香辣酱、卤蛋、咖啡混杂的味道，像一锅由高压生活炖出来的青春。</p><p>Nomad坐在角落，夹着凉掉的煎蛋，突然说：</p><p>“老莫，读博做FPGA加速方向能不能搞呢？”</p><p>话音刚落，实验室一瞬陷入短暂的沉默，只剩下外头雷雨声灌进屋子里。</p><p>坐在靠窗一侧的老莫抬起头来，他没吃饭，只是握着一杯兑了冰块的黑咖啡，像往常一样一脸疲惫，眼神却清醒。他盯了Nomad一眼，叹了口气，说：</p><p>“现在读博士还搞这个？建议换导师，或者早点跑路。”</p><p>众人笑了，笑声中带着些调侃、些许认同，还有些说不清道不明的心照不宣。</p><p>Nomad并不恼，眨了眨眼，说：“支持啊，我是认真的。不仅是FPGA，整个数字IC这一套，关键点其实在软件不在硬件。核心是——能不能找到别人没开发过的坑，咱自己填一下。”</p><p>老莫抿了一口咖啡，眼角带笑，声音懒洋洋地丢过来一句：“基本上可以鉴定为是江湖庸医的水准。”</p><p>另一个博士生在拆茶叶蛋，笑着接话：“不过他这话也没错呀，像现在AI加速、边缘计算这些，很多时候硬件不是问题，问题是能不能让它跑得起来，跑得快。”</p><p>Nomad点头，像是找到了支持：“我一直觉得，FPGA开发者社区应该也能形成自己的GitHub和Paper with Code，就像搞深度学习的那帮人一样。”</p><p>有人咕哝着：“那是烧钱堆出来的……”</p><p>但Nomad声音没停：“我们真正要实现的，是创造一个社群。只要开发者数量足够多，自然就会出现代码共享的平台，自然就会有人做debug服务，自然也会出现各种供人即插即用的IP。”</p><p>实验室一瞬间安静了，老莫终于开口，半讥讽半认真：“但这不是Xilinx和Intel他们公司该考虑的事吗？你一个博士生搞社群？”</p><p>Nomad摇头，神情罕见地认真：“不不，这是每一个FPGA开发者共同的愿景。Github也不是哪个公司开发的，但它确实推动了整个软件行业。我们也可以，只要……我们愿意试。”</p><p>屋外雷声再次炸响，玻璃窗轻轻抖了一下。老莫靠着椅背，望着窗外模糊一片的雨幕，沉默了几秒，然后笑了一声。</p><p>“你愿意试，那你就去做。”他说，“别等别人造船，有时候你得自己撑起一块木板，就算只是让别人知道这片海能漂。”</p><p>他低头，打开笔记本，翻出那个已经一年没动的私有仓库，敲下一行字：</p><blockquote><p>“FPGA开源社群计划 v0.1，夏初启动，雷雨为证。”</p></blockquote><p>Nomad笑了，伸手去碰老莫的屏幕，敲下一句：</p><blockquote><p>“等晴了，我们搞个README。”</p></blockquote>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>帝3——英国与法国打法</title>
+      <link href="/2024/06/14/%E5%B8%9D3%E2%80%94%E2%80%94%E6%B3%95%E5%9B%BD%E6%89%93%E6%B3%95/"/>
+      <url>/2024/06/14/%E5%B8%9D3%E2%80%94%E2%80%94%E6%B3%95%E5%9B%BD%E6%89%93%E6%B3%95/</url>
+      
+        <content type="html"><![CDATA[<h1 id="帝3——法国打法"><a href="#帝3——法国打法" class="headerlink" title="帝3——法国打法"></a>帝3——法国打法</h1><h3 id="土著流"><a href="#土著流" class="headerlink" title="土著流"></a>土著流</h3><p>14农三分钟之前开始升本。升本期间9农伐木，其余吃肉。<strong>4分30秒完成升本</strong>。一卡700木，二卡原住民条约。起一个贸易战，一个兵营。此时对面可能会来压原住民交易站。</p><h1 id="英国打法"><a href="#英国打法" class="headerlink" title="英国打法"></a>英国打法</h1><h3 id="格林尼治时间FI"><a href="#格林尼治时间FI" class="headerlink" title="格林尼治时间FI"></a>格林尼治时间FI</h3><p>英国开局拥有300木，起一个TP后，用两农伐木，或者打木宝攒够140木，起一个房子。<strong>一卡格林尼治时间</strong>。<strong>3分钟左右</strong>以14农塔金上本。此时因为有2TP。理想情况下<strong>4分钟左右</strong>即可完成上本。</p><p>上本后一卡700金，二卡700木。<strong>5分40秒</strong>7豪德战斧兵上三本。同时三卡发出<strong>光荣革命</strong>。700木用于起4个房子与一个教堂。同样，在<strong>7分钟之前</strong>，可以成功上三本。上本期间<strong>所有农吃肉</strong>。</p><p>三本后一卡发2炮，攒够1000肉后出苏格兰黑卫士军团。此时应在<strong>8分半左右</strong>，以8黑卫士7战斧兵和二炮挡住对手的进攻，或是压对面的家。<br>二卡发1000金，准备升级工业时代。工业时代选择可以2鹰炮升级。</p><p><strong>12分左右</strong>，工业时代后，一卡可选择发3火箭或者<strong>长矛绅士</strong>。</p><p>该流程时代3因为缺经济，很容易站不稳。</p><h3 id="两房经济型殖民rush"><a href="#两房经济型殖民rush" class="headerlink" title="两房经济型殖民rush"></a>两房经济型殖民rush</h3><p>卡组：<br><img src="/2024/06/14/%E5%B8%9D3%E2%80%94%E2%80%94%E6%B3%95%E5%9B%BD%E6%89%93%E6%B3%95/2024-09-02-09-30-06.png" class=""></p><p>木箱收到280木时，正好可以起两个房子，此时停止收木箱。一卡发三农，17农时塔金上本，时间约为<strong>2分40秒</strong>左右。</p><p>上本期间12农伐木，其余农民赶肉或起房子。二本之前，起4个房子，并保证有200木用于起一个前置兵营。</p><p>二本后，<strong>一卡700木</strong>。12农打猎，其余农伐木，如果对方是兵营开，则持续出长弓兵，否则就出火枪兵。多余的木头用于起房子。<strong>5分钟左右发二卡600木</strong>，起市场并研究一级二级打猎科技。三卡可视情况发兵卡或4农卡。</p><p><strong>7分20秒</strong>，英国应有33农与120的人口。此时可以研究市场一级伐木科技并起一个马厩。之后开始长矛兵长弓兵与骑兵配合压制。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>帝3——论大清商业时代打法</title>
+      <link href="/2024/06/12/%E5%B8%9D3%E2%80%94%E2%80%94%E8%AE%BA%E5%A4%A7%E6%B8%85%E5%95%86%E4%B8%9A%E6%97%B6%E4%BB%A3%E6%89%93%E6%B3%95/"/>
+      <url>/2024/06/12/%E5%B8%9D3%E2%80%94%E2%80%94%E8%AE%BA%E5%A4%A7%E6%B8%85%E5%95%86%E4%B8%9A%E6%97%B6%E4%BB%A3%E6%89%93%E6%B3%95/</url>
+      
+        <content type="html"><![CDATA[<p>玩大清，探索时代赶肉非常重要，直接关系到生时代的速度！一定要确保<br>所有的猎物被打死在城镇中心下面，保证最快的吃肉效率。</p><p>需要记住的一些热键：</p><p>寻找村庄：Ctrl+E<br>村庄放出农民：z<br>寻找兵营：Ctrl+B<br>领事馆：Ctrl+F</p><p>打龙骑散强国（美国，葡萄牙），一定记得带驱逐齐发，可以让大清的诸葛弩和火绳枪拥有整个游戏对龙骑倍率最高的弓散单位。</p><p>大清至少应该在3分30前农民开始敲奇观。</p><h2 id="二本大清打俄罗斯："><a href="#二本大清打俄罗斯：" class="headerlink" title="二本大清打俄罗斯："></a>二本大清打俄罗斯：</h2><p>法领3分30秒时4农瓷塔上二本，4分55秒升级完成。 一卡发城堡与猛火油柜，同时伐250木敲一个城堡。一般而言俄罗斯5分20秒左右5哥萨克10动员兵就会冲进家。<strong>老和尚此时必须回家</strong>，此时必须依靠和尚和民兵守住这一波，保证两个城堡能够起起来。之后领事馆切英领，发300茶出英领火枪和8诸葛弩挡住俄罗斯接下来的攻势。8分钟左右堡垒出两轮蒙古军，发鸳鸯阵，然后可以开始反击！</p><h2 id="二本大清打美国"><a href="#二本大清打美国" class="headerlink" title="二本大清打美国:"></a>二本大清打美国:</h2><p>俄领4农颐和园上本，上时代期间3农伐木。然后2农前置起村庄。上本期间领事馆切10%茶叶出口，尽快发出俄领碉堡，俄领碉堡前置，<strong>5分30秒左右七草马冲对面家</strong>，这段时间主要目的是压对面的肉区。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 游戏 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 帝国时代 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>CIMloop——全栈式评估存内计算架构</title>
+      <link href="/2024/06/12/CIMloop/"/>
+      <url>/2024/06/12/CIMloop/</url>
+      
+        <content type="html"><![CDATA[<img src="/2024/06/12/CIMloop/2024-06-12-19-06-55.png" class=""><p>本文开篇强调了CIM的优势，即拥有更高的density。本文试图对CIM架构进行”full stack modeling”。所谓Full stack（全栈）贯穿了器件，电路，架构，工作负载和数据流各个层面，要对CIM的design space进行建模。</p><p>其面临的挑战是：建模必须要有足够的flexibility，不仅要能够描述数据在各种结构之间的移动，举例而言：memory hierarchy中的SRAM可能会互相进行交互。甚至进一步地，其要能描述在电路层面的数据流，比如SRAM内部，数据以怎样的方式读出来进入sense amplifier，之前的建模工具要么缺少足够的flexibility，要么缺少电路层面的建模功能。</p><p>为了解决这个问题，建模工具需要描述许多不同的电路架构（比如DRAM与L3/L2/L1缓存）与电路元件（data converters, SRAM bitcells, addressing circuitry）</p><p>另一个挑战是，建模工具需要对设计的功耗有一个准确的估计。很多时候，电路的功耗是和输入数据的值有相关性（data-value-dependent），比如一个ReRAM器件的功耗和操作数的大小成正比，这一点在以往的建模工具中并没有得到关注。</p><p>总结本文的创新点：</p><ol><li>提出了一个用于全栈式的描述CIM系统的规范。</li><li>一个能统一表达各种不同电路与架构的格式</li><li>一个快速且能准确估计data-value-dependent能耗的模型<br>文中给出了对最近4个CIM设计的case study。</li></ol><p>之所以要进行full stack modeling是出于两个原因：</p><ol><li>优化单独一个层面的设计需要综合考虑其对上下所有层面的影响。比如我们的设计降低了macro层面的功耗，但在系统层面却带来了更多的功耗开销，如下图所示。文中也指出了这个矛盾，能耗上更加优化的macro倾向于降低CIM array的大小，这样能够尽可能的提升utilization rate。但在系统层面，大的CIM array尽管utilization ratio较低，但它能够降低数据在memory hierarchy之间的反复读取，反而节省了更多的能耗。</li><li>设计时综合考虑所有层面能够帮助设计者找到更好的系统设计方案。</li></ol><img src="/2024/06/12/CIMloop/2024-06-13-11-49-03.png" class=""><p>不同的CIM macro采用不同的数据流，一个评估数据流的关键因素是它们能够多大幅度地重用操作数。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 芯片设计 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 存内计算 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>处理帧间残差——ISSCC2020 14.2</title>
+      <link href="/2024/06/11/%E5%A4%84%E7%90%86%E5%B8%A7%E9%97%B4%E6%AE%8B%E5%B7%AE%E2%80%94%E2%80%94ISSCC2020-14-2/"/>
+      <url>/2024/06/11/%E5%A4%84%E7%90%86%E5%B8%A7%E9%97%B4%E6%AE%8B%E5%B7%AE%E2%80%94%E2%80%94ISSCC2020-14-2/</url>
+      
+        <content type="html"><![CDATA[<p>文章名与作者单位列出如下，来自清华大学刘永攀组。<br><img src="/2024/06/11/%E5%A4%84%E7%90%86%E5%B8%A7%E9%97%B4%E6%AE%8B%E5%B7%AE%E2%80%94%E2%80%94ISSCC2020-14-2/2024-06-11-13-16-17.png" class=""></p><p>从名称可知，这个work主要目标是部署一个能够感知两次activation输入相似性的CNN神经网络。由于在视频处理中，相邻的两帧之间差别很小。把相邻的两帧作差，得到的feature map包含大量的sparsity (为0的值)。</p><img src="/2024/06/11/%E5%A4%84%E7%90%86%E5%B8%A7%E9%97%B4%E6%AE%8B%E5%B7%AE%E2%80%94%E2%80%94ISSCC2020-14-2/2024-06-11-11-36-06.png" class=""><p>软件层面，控制帧重用的flow的工作模式如下：<br><img src="/2024/06/11/%E5%A4%84%E7%90%86%E5%B8%A7%E9%97%B4%E6%AE%8B%E5%B7%AE%E2%80%94%E2%80%94ISSCC2020-14-2/2024-06-11-14-03-48.png" class=""></p><p>对神经网络的每一层，第一帧作为一个完整的图像进行处理，但接下来的帧仅仅处理与上一帧作差的结果，我将其称为帧间残差（difference frame）。由于帧间相似性，这个difference frame可以被量化为4b低精度矩阵与8b高精度稀疏矩阵的结合，之后可对两部分矩阵可以进行分治操作。由于ReLU操作的处理目标为原始图像，神经网络中除ReLU以外的所有操作都由difference frame作input activation。在进行ReLU之前，difference frame将会还原当前帧的原始图像（Recover frame），上图中左路的分支为当前帧的原始图像，而右路分支为前一帧。两者都进行ReLU之后，再重新生成difference frame用于下一层。</p><p>这样做的效果是显著的，文中这句话明确地描述了inter-frame reuse能够带来的好处。<br><img src="/2024/06/11/%E5%A4%84%E7%90%86%E5%B8%A7%E9%97%B4%E6%AE%8B%E5%B7%AE%E2%80%94%E2%80%94ISSCC2020-14-2/2024-06-11-15-40-40.png" class=""></p><img src="/2024/06/11/%E5%A4%84%E7%90%86%E5%B8%A7%E9%97%B4%E6%AE%8B%E5%B7%AE%E2%80%94%E2%80%94ISSCC2020-14-2/2024-06-11-14-54-17.png" class=""><p>本文提出的第二个feature是处理difference frame计算时的sparsity。首先在offline处理时，对weight进行run-length coding，当weight读出时，weight sparsity将被跳过，其对应的activation row也不会从Activation SRAM中读出。这里Activation Channel Addresses Hash Table用于找到与当前weight kernel对应的activation row。个人认为这个idea与前面的feature配合的不是很好。因为既然处理的是帧间残差，我们自然会想到是input activation包含大量的sparsity，但这里确是针对weight sparsity做了优化。</p><img src="/2024/06/11/%E5%A4%84%E7%90%86%E5%B8%A7%E9%97%B4%E6%AE%8B%E5%B7%AE%E2%80%94%E2%80%94ISSCC2020-14-2/2024-06-11-16-04-32.png" class=""><p>下图展示了本文提出的第三个feature，主要说的是帧间残差矩阵的offchip传输问题。作者设计了一个新的Codec (coder/decoder)，将帧间残差根据每个矩阵值的大小分为1/2/4/8b进行传输。1/2/4b的数据进行打包传输，8b的数据由于十分稀疏，所以传输其数据与地址。这其实就是一个经典的优化数据传输的方案，可以理解为dense matrix用结构化数组存储与传输，而sparse matrix采用非结构化数据进行存储与传输的分治策略。<br><img src="/2024/06/11/%E5%A4%84%E7%90%86%E5%B8%A7%E9%97%B4%E6%AE%8B%E5%B7%AE%E2%80%94%E2%80%94ISSCC2020-14-2/2024-06-11-16-10-30.png" class=""></p><p>总而言之，该芯片采用65nm制程，芯片大小为$12mm^2$，能降低76.3%的平均功耗并不会产生accuracy loss。在100MHz工作频率，1V的工作电压下，功耗为99mW，吞吐量在85%的weight sparsity ratio（讲道理这个weight sparsity ratio感觉有点高了）以及平均75%的inter frame data reuse的条件下达到了32.8GOPS。</p><img src="/2024/06/11/%E5%A4%84%E7%90%86%E5%B8%A7%E9%97%B4%E6%AE%8B%E5%B7%AE%E2%80%94%E2%80%94ISSCC2020-14-2/2024-06-11-16-22-13.png" class="">]]></content>
+      
+      
+      <categories>
+          
+          <category> 芯片设计 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 数字加速器 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>帝3——意大利阿根廷革命流</title>
+      <link href="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/"/>
+      <url>/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/</url>
+      
+        <content type="html"><![CDATA[<h1 id="帝3——意大利阿根廷革命流"><a href="#帝3——意大利阿根廷革命流" class="headerlink" title="帝3——意大利阿根廷革命流"></a>帝3——意大利阿根廷革命流</h1><p>视频教学参考：<a href="https://www.bilibili.com/video/BV15w4m1i7t4/">https://www.bilibili.com/video/BV15w4m1i7t4/</a></p><p>卡组参考：<br>小海龟oo的边境防御工事<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-18-45-47.png" class=""></p><h3 id="探索时代："><a href="#探索时代：" class="headerlink" title="探索时代："></a>探索时代：</h3><p>开局用建筑师起市场，攒够木头之后加速建造。紧接着建筑师起一个房子。市场第一个科技研究大衣，之后市场卖食物研究猎犬，农民攻击力，并准备资源研究2级打猎。房子起好后建筑师去起TP。</p><p>一卡发资本主义，紧接着研究一级伐木。<strong>17农升二本</strong>，理想情况下<strong>3分10秒</strong>点下升级按钮。升级选<strong>塔金</strong>（总督）。</p><p>升级期间9农伐木，4农采金，其余赶肉。尽快用木头加速TP的建造，紧接着建筑师回家起一个房子与伦巴第。金子采够后造一个建筑师，采够75木升级一级采金后，7农采金，其余吃肉。</p><h3 id="商业时代："><a href="#商业时代：" class="headerlink" title="商业时代："></a>商业时代：</h3><h4 id="小海龟卡组"><a href="#小海龟卡组" class="headerlink" title="小海龟卡组"></a>小海龟卡组</h4><p><strong>4分50秒</strong>左右上本完成，塔放家里，上本后第一时间发700金，并准备造第三个建筑师。所有建筑师一起敲伦巴第。<br><strong>6分钟</strong>之前升级三本，选择<strong>篷车升级</strong>（主教），此时大概有19农。<br>升本期间，建筑师敲第二个伦巴第。</p><h4 id="乐于卡组"><a href="#乐于卡组" class="headerlink" title="乐于卡组"></a>乐于卡组</h4><h3 id="要塞时代："><a href="#要塞时代：" class="headerlink" title="要塞时代："></a>要塞时代：</h3><p><strong>6分50秒</strong>左右上本完成，并且两个伦巴第也建造完成，建筑师开始敲第三个城镇中心（或者敲大教堂）。三本<strong>第一卡发4塔</strong>。第二卡发<strong>卢卡金融家（1200木）</strong>，伦巴第投资剩余的木头。所有农民去吃肉。建筑师修完城镇中心后，再起三个伦巴第。第三卡发 <strong>热那亚金融家 (1200金)</strong>。<strong>10分50秒左右升级工业</strong>，选择<strong>宗座瑞士近卫队</strong>。</p><p>升级期间，建筑师起大教堂，出一轮<strong>教宗骑士</strong>，并升级教堂科技。</p><h3 id="工业时代："><a href="#工业时代：" class="headerlink" title="工业时代："></a>工业时代：</h3><p>发两鹰炮两长炮，先守住第一波攻势。兵营保持出神射手，别让伦巴第全被推了！小海龟这一把瑞典直接推了五门炮过来，依靠10神射手+3教宗骑士+升级送的宗座瑞士近卫队+发的两鹰炮两长炮+民兵才守住。但损失惨重，伦巴第被拆了个干净，里面的资源全没了。教训是：应该至少把一个伦巴第后置，总之这一波一定要守住！<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-19-16-57.png" class=""></p><p><strong>FI打法：</strong><br>发工厂。之后发<strong>佛罗伦萨金融家 （2300金）</strong>，再出一轮教宗骑士。兵营保持出神射手。第三卡发<strong>教宗火炮</strong>，然后进入暴兵状态。</p><p><strong>阿根廷革命</strong><br>直接发<strong>佛罗伦萨金融家 （2300金）</strong>，同时攒革命的资源，卡发到后立即阿根廷革命。时间大概在<strong>14分50秒左右</strong>。另外提前造两个牲畜栏，并升级法外之徒。阿根廷送10个高乔人。<br>一卡直接发近卫掷弹骑兵，然后准备1200金发圣马丁（13近卫掷弹骑兵+10军团龙骑兵+1英雄圣马丁），之后再接阿根廷迫击炮。<br>经济可以通过发无限8牛来补食物，并通过伦巴第投资食物来补充木头和黄金。</p><p>高乔人数据<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-21-27-17.png" class=""></p><p>高乔人可以训练牛<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-21-28-19.png" class=""></p><p>近卫掷弹骑兵<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-21-33-38.png" class=""></p><p>兵工厂研究燃烧弹后可以拥有更大的爆炸半径。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 游戏 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 帝国时代 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>DC怎样保持设计的hierarchy</title>
+      <link href="/2024/06/08/DC%E6%80%8E%E6%A0%B7%E4%BF%9D%E6%8C%81%E8%AE%BE%E8%AE%A1%E7%9A%84hierarchy/"/>
+      <url>/2024/06/08/DC%E6%80%8E%E6%A0%B7%E4%BF%9D%E6%8C%81%E8%AE%BE%E8%AE%A1%E7%9A%84hierarchy/</url>
+      
+        <content type="html"><![CDATA[<h1 id="【DC】怎样保持住设计的hierarchy"><a href="#【DC】怎样保持住设计的hierarchy" class="headerlink" title="【DC】怎样保持住设计的hierarchy"></a>【DC】怎样保持住设计的hierarchy</h1><p>Design hierarchy反应了设计的分割策略(partitioning)，良好的hierarchy不仅便于理顺数据流，有利于对边界进行时需优化，更方便了后续PR阶段对各个HInst进行布局。</p><p>在读入RTL后，可以使用report_hierarchy检查当前设计的hierarchy，如图<br><img src="/2024/06/08/DC%E6%80%8E%E6%A0%B7%E4%BF%9D%E6%8C%81%E8%AE%BE%E8%AE%A1%E7%9A%84hierarchy/image.png" class="" title="Alt text"></p><p>但是，如果不进行分组(grouping)，后续综合出来，DC会进行自动auto group，最终的hierarchy可能并不能像我们预想的那样。<br><img src="/2024/06/08/DC%E6%80%8E%E6%A0%B7%E4%BF%9D%E6%8C%81%E8%AE%BE%E8%AE%A1%E7%9A%84hierarchy/image-1.png" class="" title="Alt text"></p><p>使用group命令将Digit_Sparsity_Exploiting_Engine0模块单独分组<br><code>group &#123;Digit_Sparsity_Exploiting_Engine0&#125; -desgin_name DSEE -cell_name DSEE</code></p><p>再report hierarchy，可见DSEE加入到了整个设计的hierarchy中</p><img src="/2024/06/08/DC%E6%80%8E%E6%A0%B7%E4%BF%9D%E6%8C%81%E8%AE%BE%E8%AE%A1%E7%9A%84hierarchy/image-2.png" class="" title="Alt text"><p>之后将ungroup属性设置为false，避免优化器进行flatten<br><code>set_ungroup DSEE false</code></p><p>重新综合后可见DSEE并没有被flatten<br><img src="/2024/06/08/DC%E6%80%8E%E6%A0%B7%E4%BF%9D%E6%8C%81%E8%AE%BE%E8%AE%A1%E7%9A%84hierarchy/image-3.png" class="" title="Alt text"><br>Innovus floorplan里也可以看到HInst<br><img src="/2024/06/08/DC%E6%80%8E%E6%A0%B7%E4%BF%9D%E6%8C%81%E8%AE%BE%E8%AE%A1%E7%9A%84hierarchy/image-5.png" class="" title="Alt text"></p><p>成功!</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 技术栈 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 后端综合 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>Mamba为什么胜利</title>
+      <link href="/2024/06/08/Mamba%E4%B8%BA%E4%BB%80%E4%B9%88%E8%83%9C%E5%88%A9/"/>
+      <url>/2024/06/08/Mamba%E4%B8%BA%E4%BB%80%E4%B9%88%E8%83%9C%E5%88%A9/</url>
+      
+        <content type="html"><![CDATA[<h1 id="Mamba为什么胜利"><a href="#Mamba为什么胜利" class="headerlink" title="Mamba为什么胜利"></a>Mamba为什么胜利</h1><img src="/2024/06/08/Mamba%E4%B8%BA%E4%BB%80%E4%B9%88%E8%83%9C%E5%88%A9/2024-06-08-13-12-02.png" class=""><p>Mamba模型一出现就引起的广泛的讨论，尽管一开始论文没有被接收，很多人已经惊呼：“Transformer已死！Mamba即将取代Transformer成为新神！”，今年的6月4日，原作者推出了Mamba2，这次成功被ICML接收。抛开梗化的名称不论，从其论文展示出的性能上看确实击败了transformer。<br><img src="/2024/06/08/Mamba%E4%B8%BA%E4%BB%80%E4%B9%88%E8%83%9C%E5%88%A9/2024-06-08-13-29-26.png" class=""></p><font face="仿宋"><font size=2>**Mamba block的架构，论文名称：A Survey on Vision Mamba: Models, Applications and Challenges**</font></font><p>众所周知，当今的transformer面临的问题是attention计算量与token的数目存在平方的关系，如果序列过长的话，transformer网络将给计算系统的IO, 内存与计算单元全部上强度。动辄100天的训练时长让很多小作坊望而却步。而Mamba正是为了解决这个问题而提出的，它的类RNN的计算模式在长序列下更加的硬件友好。<br>我们可以把mamba视为硬件和软件协同进化的产物。在2017年以前的RNN时代，我们拥有很强的硬件，但缺少能够利用好硬件平台的强大算法。RNN 递归的计算方式让其无法做好很好的并行化处理。于是transformer横空出世，以其强大的并行性迅速用满了所有的计算资源。它不仅取得了巨大的成功，甚至刺激硬件层面做出新的迭代。而现在的局面是硬件跟不上软件，所以Mamba重新回到了递归的计算方式，可以说是软件对硬件的一种妥协。其内存层次结构(memory hierarchy)感知的创新更是算法向硬件的一次奔赴，所以Mamba在这轮的博弈中胜出。不过可以预见在将来，硬件计算平台进一步迭代后，并行化的优势将进一步被强调，新的架构也将诞生。目前已经发现了Mamba存在训练速度慢的问题，我们可能会迎来Mamba out的时刻。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 模型算法 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> LLM </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>数据和模型设计层面怎样让Transformer运行地更加高效——ACL2023</title>
+      <link href="/2024/06/07/%E6%80%8E%E6%A0%B7%E8%AE%A9NLP%E8%BF%90%E8%A1%8C%E5%9C%B0%E6%9B%B4%E5%8A%A0%E9%AB%98%E6%95%88%E2%80%94%E2%80%94ACL2023/"/>
+      <url>/2024/06/07/%E6%80%8E%E6%A0%B7%E8%AE%A9NLP%E8%BF%90%E8%A1%8C%E5%9C%B0%E6%9B%B4%E5%8A%A0%E9%AB%98%E6%95%88%E2%80%94%E2%80%94ACL2023/</url>
+      
+        <content type="html"><![CDATA[<h1 id="数据和模型设计层面怎样让Transformer更加高效——ACL2023"><a href="#数据和模型设计层面怎样让Transformer更加高效——ACL2023" class="headerlink" title="数据和模型设计层面怎样让Transformer更加高效——ACL2023"></a>数据和模型设计层面怎样让Transformer更加高效——ACL2023</h1><p>去年在ACL2023会议上发表的一篇综述性文章，系统地介绍了近年来可以应用在自然语言处理（NLP）任务中提高计算效率的方法。文章名，作者以及单位贴出如下：<br><img src="/2024/06/07/%E6%80%8E%E6%A0%B7%E8%AE%A9NLP%E8%BF%90%E8%A1%8C%E5%9C%B0%E6%9B%B4%E5%8A%A0%E9%AB%98%E6%95%88%E2%80%94%E2%80%94ACL2023/image-2.png" class="" title="alt text"></p><p>将这些方法整理为一个工具包，可以总结成下图：<br><img src="/2024/06/07/%E6%80%8E%E6%A0%B7%E8%AE%A9NLP%E8%BF%90%E8%A1%8C%E5%9C%B0%E6%9B%B4%E5%8A%A0%E9%AB%98%E6%95%88%E2%80%94%E2%80%94ACL2023/2024-06-07-14-16-10.png" class=""></p><p>数据（data）层面：<br><strong>data filtering</strong>，目标是减少无效的训练样本，比如减少样本的重复性。<br><strong>active learning</strong>, 和data filtering不同，主动学习动态地更新训练集的样本，其流程如下：<br><img src="/2024/06/07/%E6%80%8E%E6%A0%B7%E8%AE%A9NLP%E8%BF%90%E8%A1%8C%E5%9C%B0%E6%9B%B4%E5%8A%A0%E9%AB%98%E6%95%88%E2%80%94%E2%80%94ACL2023/2024-06-07-14-34-01.png" class=""><br><strong>Curriculum Learning</strong>，通过改变训练集样本的顺序来提高计算效率，其并不改变训练集的大小。<br>模型设计（Model design）层面：<br><strong>Compress Attention</strong>, Transforer-XL引入了循环机制和相对位置编码，使其inference比vanillar Transformer快300~1800倍。另一个案例是$ \infty $-former, 其目的是为了让系统能够hold住任意序列长度的attention。由对attention map （过Normalized Softmax后的$QK^T$矩阵）的每一行都可以视为一个离散概率质量函数，首先可以把它转化为一个连续的概率密度函数，这也被称作continuous attention。之后用N个基函数来表示这个连续概率密度函数。由于N远远小于sequence length并且是固定的，所以其能在有限的内存中处理无限长度的序列attention，代价是损失了长程记忆的resolution。实验证明该方法在处理长序列时（sequence length&gt;8000）拥有比Transformer-XL更好的表现。</p><p><strong>Fast Attention</strong>, 一种是sparse Attention, 即通过一个需要设定好的attention mask来降低attention map的计算量，代表是Reformer。另一种是通过主成分分析（PCA）的方法，计算attention map的low rank部分，代表是Performer。当然还有由Tri. Dao博士提出的Flash Attention方法，通过设计了一种新的IO-aware的attention计算模式，从memory hierarchy的角度优化了attention的计算效率。</p><p><strong>Sparse modeling</strong>, 这个方法包含了专家混合Mixture of Expert (MoE)的思想，每次inference只选择性地经过模型中的一小部分，而不会跑完整个网络，英文中将整个概念成为sparsely-activated model。其代表为Switch Transformer，它将Transformer中self-attention后的全连接层(FFN)替换为了一个称作”sparse Switch FFN”的层，如下图所示：</p><img src="/2024/06/07/%E6%80%8E%E6%A0%B7%E8%AE%A9NLP%E8%BF%90%E8%A1%8C%E5%9C%B0%E6%9B%B4%E5%8A%A0%E9%AB%98%E6%95%88%E2%80%94%E2%80%94ACL2023/2024-06-07-15-41-42.png" class=""><p>另一个方法是SparseFinder，发表在2022年的论文“Predicting Attention Sparsity in Transformers”上，和<strong>Fast attention</strong>中提到的预先设定好的attention mask不同，SparseFinder通过知识蒸馏训练一个student model来预测这个attention mask。其能在WikiText-103模型上取得98.04%的sparsity ratio（相当于inference time提升了近51倍）。</p><p><strong>Parameter efficiency</strong>, 这个方法注重降低模型参数量以节省计算与内存开销。典型方法如ALBERT,通过embedding参数分解和层间参数共享大大减少了参数量。ALBERT-base模型只有12M的参数量，却能在SQuAD2.0任务中取得和BERT-base相似的表现(80.0:80.4)。所谓embedding参数分解的意思是把embedding层的输出矩阵（大小为$V \times H$, $V$为sequence length，$E$为hidden size）通过一个linear层转化为$ V \times E $，在计算完成后再转化回来。则理论上，新的参数量由$ V \times H $变为了$V \times E + E \times H$，当$E$远小于$H$时，能极大地降低参数量。</p><p><strong>Retrieval-based</strong>, retrieve指的是从大量数据中检索信息以增强语言模型的性能。以RETRO模型为例，其可以从包含20000亿个token的数据库中检索出与当前token相似的token用于预测新的token。相较于GPT3，其使用了25倍小的模型参数量，却取得了相近的表现。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 模型算法 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> LLM </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>设计本地加速器的意义</title>
+      <link href="/2024/06/06/%E8%AE%BE%E8%AE%A1%E6%9C%AC%E5%9C%B0%E5%8A%A0%E9%80%9F%E5%99%A8%E7%9A%84%E6%84%8F%E4%B9%89/"/>
+      <url>/2024/06/06/%E8%AE%BE%E8%AE%A1%E6%9C%AC%E5%9C%B0%E5%8A%A0%E9%80%9F%E5%99%A8%E7%9A%84%E6%84%8F%E4%B9%89/</url>
+      
+        <content type="html"><![CDATA[<h1 id="设计本地硬件加速器的意义"><a href="#设计本地硬件加速器的意义" class="headerlink" title="设计本地硬件加速器的意义"></a>设计本地硬件加速器的意义</h1><p>最近在研究怎样针对diffusion model设计硬件加速器，这也将成为我博士工作的一部分。以diffusion model为基础的AI生成模型在很多方面惊艳了我，好似是一件极尽玄妙的高维造物。在我尝试理解diffusion model是如何从满是马赛克的噪声图创造出不输于人类画手的绝美图像的同时，发现了开展新工作的动机。</p><font face="仿宋"><font size=2>**B站上找到的由AI生成的宫崎骏画风壁纸 -- https://www.bilibili.com/video/BV1yQ4y1s71b/?spm_id_from=333.337**</font></font><p>我们现在熟知的AI生成模型通常需要大量的计算资源，因此它们经常被部署在云端。比如Sora和GPT4，用户需要通过网络接口才能进行访问和使用。尽管云端的AI生成模型已经具备非常强大的能力，但如果要真正刺激用户的使用需求，AI模型保密性与可定制性一定至关重要。想象一下，我们希望AI模型帮助自己自己生成博客，工作笔记甚至论文图片。但云端的模型往往同时接受成百上千的用户数据，其必然倾向于调和所用人的共同需求。如果要让它成为我们的助手，其表现往往难以获得信任。</p><p>解决这个问题的方案有二，第一个思路是缩小生成模型的规模，使其能够完全部署在本地设备上。这种方案尽管获得了完全的可定制性，但把巨大规模的生成模型缩小到本地设备能够支持的大小，其表现一定会大打折扣。第二个思路是使用联合学习（federated learning）的算法，使客户能够（client）私有一部分模型的权重。此时AI模型与我们的关系好比是事务所与客户的关系，这相当于牺牲了一部分的可定制性，但对本地硬件上更加友好。总而言之，这是一个模型表现，本地计算效率和本地-云端通信效率互相折衷的局面，下图表现了三者的关系。如果本地的计算效率更高，我们就可以将更大一部分的模型部署于本地，这不仅能降低云端通信的负载，我们的模型也将拥有更强的可定制性，这也是设计部署于本地的加速器的意义所在。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 芯片设计 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 数字加速器 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>从残差入手——ISSCC2024中的diffusion model加速器</title>
+      <link href="/2024/06/05/%E4%BB%8E%E6%AE%8B%E5%B7%AE%E5%85%A5%E6%89%8B%E2%80%94%E2%80%94ISSCC2024%E4%B8%AD%E7%9A%84diffusion-model%E5%8A%A0%E9%80%9F%E5%99%A8/"/>
+      <url>/2024/06/05/%E4%BB%8E%E6%AE%8B%E5%B7%AE%E5%85%A5%E6%89%8B%E2%80%94%E2%80%94ISSCC2024%E4%B8%AD%E7%9A%84diffusion-model%E5%8A%A0%E9%80%9F%E5%99%A8/</url>
+      
+        <content type="html"><![CDATA[<h1 id="从残差入手——ISSCC2024中的diffusion-model加速器设计"><a href="#从残差入手——ISSCC2024中的diffusion-model加速器设计" class="headerlink" title="从残差入手——ISSCC2024中的diffusion model加速器设计"></a>从残差入手——ISSCC2024中的diffusion model加速器设计</h1><p>$ \color{Green}{y = ax^2 + bx + c} $</p><h2 id="Diffusion-Model怎样生成图片"><a href="#Diffusion-Model怎样生成图片" class="headerlink" title="Diffusion Model怎样生成图片"></a>Diffusion Model怎样生成图片</h2><p>这里简单叙述一下diffusion model生成图片的过程。Diffusion model出现之前，GAN一直主导着图像生成领域，直到OpenAI的问世，diffusion model才真正在图像生成领域击败了GAN。OpenAI采用了一种新的采样方法——classifier guidance，使得模型能够对输入的条件来选择生成什么样的图片。但Diffusion model的运算是非常消耗计算资源的，一台Nvidia A100生成$ 256 \times 256 $的图片需要50次迭代，一共消耗2560ms的时长与250W的功耗。</p><p>发表于CPVR2023的U-ViT模型：<br><img src="/2024/06/05/%E4%BB%8E%E6%AE%8B%E5%B7%AE%E5%85%A5%E6%89%8B%E2%80%94%E2%80%94ISSCC2024%E4%B8%AD%E7%9A%84diffusion-model%E5%8A%A0%E9%80%9F%E5%99%A8/image-1.png" class="" title="alt text"></p><h2 id="ISSCC2024-20-2的加速器设计"><a href="#ISSCC2024-20-2的加速器设计" class="headerlink" title="ISSCC2024 20.2的加速器设计"></a>ISSCC2024 20.2的加速器设计</h2><p>正巧在今年ISSCC2024，由清华大学发表的20.2设计了加速器，给我们提供了一种思路和方向。</p><img src="/2024/06/05/%E4%BB%8E%E6%AE%8B%E5%B7%AE%E5%85%A5%E6%89%8B%E2%80%94%E2%80%94ISSCC2024%E4%B8%AD%E7%9A%84diffusion-model%E5%8A%A0%E9%80%9F%E5%99%A8/image.png" class="" title="alt text"><p>由于diffusion model生成图片是一个不断去噪的过程，每两次迭代中input的差距非常的小，这就是残差学习的思想，上图的similarity in 2 adjacent DMs展示了这个特性。其分布可以分成两个区间，一个是密集分布在0值附近的“小数据”, 这一部分可以使用定点数量化，所以被成为Dense INT tensor。另一个是散布在整个feature map中的“大数据”，采用浮点数量化，所以称为Sparse FP tensor。进一步地，这个work将对两个tensor采用不同的运算策略。<br>我将这样的思想称为workload分治，许多大模型加速方面的论文都体现了这样的思想。第一步就是分，典型如Scatterbrain提出的Sparse+lowrank方法结合了由Performer和Reformer各自的优点，使得Transformer能够拥有更好的计算效率与表现 $ \color</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 芯片设计 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 数字加速器 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>科学革命的结构-过去的思想与哲学</title>
+      <link href="/2024/01/03/%E7%A7%91%E5%AD%A6%E9%9D%A9%E5%91%BD%E7%9A%84%E7%BB%93%E6%9E%84-%E8%BF%87%E5%8E%BB%E7%9A%84%E6%80%9D%E6%83%B3%E4%B8%8E%E5%93%B2%E5%AD%A6/"/>
+      <url>/2024/01/03/%E7%A7%91%E5%AD%A6%E9%9D%A9%E5%91%BD%E7%9A%84%E7%BB%93%E6%9E%84-%E8%BF%87%E5%8E%BB%E7%9A%84%E6%80%9D%E6%83%B3%E4%B8%8E%E5%93%B2%E5%AD%A6/</url>
+      
+        <content type="html"><![CDATA[<h1 id="孔恩《科学革命的结构》读书笔记"><a href="#孔恩《科学革命的结构》读书笔记" class="headerlink" title="孔恩《科学革命的结构》读书笔记"></a>孔恩《科学革命的结构》读书笔记</h1><h2 id="过去的思想与哲学"><a href="#过去的思想与哲学" class="headerlink" title="过去的思想与哲学"></a>过去的思想与哲学</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">胡塞尔反对心理主义、历史主义，弗列格也反对那些充满历史味、心理主义的东西。</span><br></pre></td></tr></table></figure><p>近代科学哲学的发展一直是一个引人入胜的领域，埃德蒙德·胡塞尔作为现象学之父，试图为纯粹的逻辑提供基础。19世纪的哲学发展，似乎要把一切的认识活动，都归于心理活动的范畴。心理主义认为，认识论关注的是感知、信念、判断和认识的认知本性。而所有这些现象是心智现象，因此，明显地，研究和探索它们的结构是心理学的任务。同样，科学和逻辑的推理本质上也是心智的一部分，它们是从属于人的心理的。这导致逻辑学被看作是心理学的一部分。通俗来讲，好像这个世界现有了人的认知，才拥有了逻辑学。而自古以来就有不少人尝试以研究与解释个别人类历史发展（如部落史、王朝更替史）为基础去理解个别的社会与政治，认为了解历史发展的趋势便能掌握未来发展，知道什么趋势将会容易成功。在中国的文化土壤下，这样的哲学观很受到欢迎。所谓“以史为可以知兴替”，古典的儒家知识分子反复用过去的故事教育封建统治者，可以视为历史主义在中国的反复实践。但心理主义和历史主义固有的不可证伪性与自否性，让思想家们认为其缺乏一种“科学的味道”，人们更喜欢符号化或者公理化带来的确定感。从19世纪末开始，德国的思想家们开始以数学和逻辑学为模范，开始推进认识论的符号化和公理化。</p><p>原书中写到：<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">“学圈”中的物理学家在接受逻辑新思潮的洗礼后，开始觉得他们原来的物理语言太暧昧，需要进一步的加以澄清、定义，这使得他们一开始便非常重视科学中的推论过程与逻辑结构。另一方面，“学圈”一开始便专注在牛顿力学与相对论这些时代宠儿的形式数学结构上，气势上显得咄咄逼人。他们以逻辑与数学分析为利器，根据他们对科学史中一小段的一部分之权威的信心，提出有意义与无意义的检证标准（或说史区分科学与形而上学的判决标准）。重视科学理论的逻辑结构、并用逻辑分析来区分科学与非科学——这两个特性一开始便多少决定了二十世纪上半期英美科学的哲学的发展。</span><br><span class="line"></span><br></pre></td></tr></table></figure><br><strong>澄清</strong>、<strong>定义</strong>、<strong>检证</strong>，是科学对抗形而上学乃至玄学的法宝。</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">在哲学史方面，因为研究哲学史需要同情地去了解彼时的观念系统，而不是冒然地用现代哲学的观点去评判古人的得失。</span><br></pre></td></tr></table></figure><p>可以说，形而上学对整个科学的进步也起到了不可磨灭的作用。<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">伽利略的柏拉图式的思考方式、以及他“在思维中做实验(thought experiment)的格调，笛卡尔明白地用上帝的许多属性来推演惯性定律、动量不减律，牛顿在“经验科学”之外对“精神性的以太”的玄思、对炼金术的专注等，都是最明显的例子。这些“形而上学”的因素往往在科学发展中扮演很重要的**启迪(heuristic)**角色。</span><br></pre></td></tr></table></figure><br>而科学哲学要解决的问题就是回答——一个理论为什么优于另外一个理论？</p><p>孔恩认为：首先以准确程度为判别标准，很难比较出不同的理论的优劣。说相对论比牛顿力学对一些物理量的预测“更准确”是不恰当的，因为两个理论所预测的东西并不相同。</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">总之，去了解一个与我们的不同的思想体系时，该是一个学习与创造的过程，类似于诠释学所说的诠释过程；而不是一方面固守自己的体系，另一方面去找对方与自己的共同点这样的“寻求交集”的过程。</span><br></pre></td></tr></table></figure><p>孔恩认为——科学之所以能有大幅度的进展，关键在于“常态科学”的权威性和独霸性。无条件地效忠于当时具有支配整个研究活动的魅力的典范，可以使科学家心无旁骛，不必老是存有骑墙念头，而瞻前顾后，耽误了精进的功夫。</p><h4 id="费若本的自由主义科学观"><a href="#费若本的自由主义科学观" class="headerlink" title="费若本的自由主义科学观"></a>费若本的自由主义科学观</h4><p>费若本批判孔恩提倡的权威主义，如果把科学研究放大到政治治理，近代史告诉我们，很多非人性化、停止、僵化与官僚的面相便由此产生。<br>基于两个论点：</p><ol><li>一个科学传统在它发展过程中所采取的手段往往不受限制，甚至是机会主义式的。伽利略与牛顿的研究与论证中往往展现出雄辩性与宣传性的一面。即使是在20世纪量子力学、相对论的发展中，为了解决问题，许多不受方法论限制的机会主义非常重要。而“常态科学”往往试图压制机会主义的自由探索精神。</li><li>费若本认为：一个好的“经验论者”应该秉持这样的信条：一个理论，只有在接受最多方面的攻击与挑战时，才有机会发展它强而有力的潜能，所以应该鼓励各种不同流派相互竞争共同发展，无论他们的主张听起来多么的怪异。这样，人类的认知探索才有可能触及最广泛的经验，也才有可能触及最有价值的东西。</li></ol><p>自由主义科学观便掷地有声地提出了他们的主张：占星术、气功、亚里士多德的物理学、海底的Vodoo巫术、达达主义、印第安人的通灵术等都应该可以与本世纪发展出的高能物理、量子力学分庭抗礼，不应有什么“可敬的”现代科学的想法。</p><p>那么科学哲学便需要解决这样一个问题————一个科学社群如何组织，与外界的关系如何安排才能有最丰富的科学发展。</p><p>孔恩分析出一个科学传统的生命过程大致可分为常态科学、危机、与革命三部分。</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">西方工业革命并没有得到比较理论性的科学的主力，古典科学在十八、十九世纪变成高度数学化的纯科学，培根科学在受到工业革命的刺激之后也开始有高度数学化的发展，迈上了纯科学之路。在本世纪的上半叶，丹麦因为哥本哈根学派的缘故，曾有一段时期成为全世界物理学者的朝圣国，但没有听说过丹麦的应用科学因此有什么昡人的发展。德国在本世纪初成为物理大国之前，技术科学早已闻名遐迩。总之，科学史上并无“基础科学”成为科技发展的基础的史实。</span><br></pre></td></tr></table></figure><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">常态科学，也就是大部分科学家投注一生心血所从事的研究活动，就是基于“科学社群知道这个世界像什么样子，而且不会错”这一假设而成立的。科学之所以能如此成功，主要原因即在于科学社群愿意维护这一假设，有时甚至到了不计代价的程度。</span><br></pre></td></tr></table></figure><h2 id="历史能做什么"><a href="#历史能做什么" class="headerlink" title="历史能做什么"></a>历史能做什么</h2><p>历史上曾经有许多“错误”与“迷信”的理论，亚里士多德动力学认为物体质量越大，掉落的速度就越快。燃素化学认为火是由无数细小而活泼的燃素构成的物质实体。能燃烧的物质都含有燃素，当物质燃烧时燃素就分离出来，燃烧时产生的热，光，火焰都是燃素逸出时的剧烈现象。热液说（Caloric Theory）声称热量是一种看不见的流体称作卡路里，也叫热液。它可以从热的地方向冷的地方流动。以现代人的科学观点来看，这些理论显得过时甚至愚蠢。但如果考察这些产生这些理论的方法，就会发现：如果要把这些过时的方法叫做神话，则产生神话的方法与产生现有科学知识的方法并无种类上的差别。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 心得随笔 </category>
+          
+      </categories>
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>SystemVerilog常见报错解决</title>
+      <link href="/2024/01/03/SystemVerilog%E5%B8%B8%E8%A7%81%E6%8A%A5%E9%94%99%E8%A7%A3%E5%86%B3/"/>
+      <url>/2024/01/03/SystemVerilog%E5%B8%B8%E8%A7%81%E6%8A%A5%E9%94%99%E8%A7%A3%E5%86%B3/</url>
+      
+        <content type="html"><![CDATA[<h1 id="SystemVerilog验证报错解决方案"><a href="#SystemVerilog验证报错解决方案" class="headerlink" title="SystemVerilog验证报错解决方案"></a>SystemVerilog验证报错解决方案</h1><h3 id="1-在initial块外定义全局变量，赋值时会报语法错误。"><a href="#1-在initial块外定义全局变量，赋值时会报语法错误。" class="headerlink" title="1.在initial块外定义全局变量，赋值时会报语法错误。"></a>1.在initial块外定义全局变量，赋值时会报语法错误。</h3><img src="/2024/01/03/SystemVerilog%E5%B8%B8%E8%A7%81%E6%8A%A5%E9%94%99%E8%A7%A3%E5%86%B3/image-3.png" class="" title="Alt text"><img src="/2024/01/03/SystemVerilog%E5%B8%B8%E8%A7%81%E6%8A%A5%E9%94%99%E8%A7%A3%E5%86%B3/image-2.png" class="" title="Alt text"><p>其原因是在SV程序结构中，initial外的语句都要经过elaboration。等于号“=”会被默认理解为硬件描述语言，而硬件描述语言中“=”操作前需要跟assign。<br><img src="/2024/01/03/SystemVerilog%E5%B8%B8%E8%A7%81%E6%8A%A5%E9%94%99%E8%A7%A3%E5%86%B3/image-4.png" class="" title="Alt text"></p><p>加入assign之后尽管不报错了，但输出结果不对。</p><p>只有将其写为软件程序的格式才能保证输出成功：<br><img src="/2024/01/03/SystemVerilog%E5%B8%B8%E8%A7%81%E6%8A%A5%E9%94%99%E8%A7%A3%E5%86%B3/image-5.png" class="" title="Alt text"><br><img src="/2024/01/03/SystemVerilog%E5%B8%B8%E8%A7%81%E6%8A%A5%E9%94%99%E8%A7%A3%E5%86%B3/image-1.png" class="" title="Alt text"></p>]]></content>
+      
+      
+      
+        <tags>
+            
+            <tag> 前端验证 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>RRAM的工作原理</title>
+      <link href="/2023/12/25/RRAM%E7%9A%84%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86/"/>
+      <url>/2023/12/25/RRAM%E7%9A%84%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86/</url>
+      
+        <content type="html"><![CDATA[<h1 id="RRAM的工作原理"><a href="#RRAM的工作原理" class="headerlink" title="RRAM的工作原理"></a>RRAM的工作原理</h1><p>RRAM/ReRAM全称为Resistive random-access memory, 是基于忆阻器(memristor)制造的一种非易失存储模块。所谓非易失性，RRAM在掉电之后数据不会丢失。传统的SRAM架构掉电之后立即丢失所有的数据，DRAM架构甚至于在上电之后也要进行反复的刷新才能保证数据稳定。这使得非易失性内存器件在功耗上比易失性器件更低。此外，RRAM的cell能够做到特征尺寸小于10nm。并且，RRAM制作工艺能够很好的于CMOS工艺进行兼容，这使得RRAM相比其他非易失存储器更受到学界的青睐。<br>从今年2月由电子科大和北大发表在JSSC上的RRAM存内计算加速器工作可以看出，在第五层金属上直接沉积TiN/HfO2/TaOx/TiN层，可以直接将RRAM做在MOS管上方，这样的集成是十分优雅的。<br><img src="/2023/12/25/RRAM%E7%9A%84%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86/2023-12-25-15-52-12.png" class=""><br>典型的RRAM结构如图所示：<br><img src="/2023/12/25/RRAM%E7%9A%84%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86/image.png" class="" title="Alt text"><br>TE(top electorde)和BE(back electorde)分别代表RRAM的上下极板，中间沉积忆阻材料。当接收到外界给与的正电压时，忆阻材料将从高电阻状态(HRS)转变为低电阻状态(LRS)。这是因为，高电压脉冲将软击穿忆阻材料并在其间形成导电通路，改变整个器件的IV特性。这个过程被称作“electroforming”，而引起electroforming的脉冲电压成为forming voltage。RRAM单元从HRS转换到LRS的过程称作set。相反，如果对忆阻材料施加过高的反向电压（或者有时仅仅只是较低的正向电压），则其将从LRS转化到HRS，这个过程称作reset。<br><img src="/2023/12/25/RRAM%E7%9A%84%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86/image-1.png" class="" title="Alt text"></p>]]></content>
+      
+      
+      
+        <tags>
+            
+            <tag> 存内计算 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>JSSC 2023.2 Design and Implementation of a Hybrid, ADC/DAC-Free, Input-Sparsity-Aware, Precision Reconfigurable RRAM Processing-in-Memory Chip</title>
+      <link href="/2023/12/25/JSSC-2023-2-Design-and-Implementation-of-a-Hybrid-ADC-DAC-Free-Input-Sparsity-Aware-Precision-Reconfigurable-RRAM-Processing-in-Memory-Chip/"/>
+      <url>/2023/12/25/JSSC-2023-2-Design-and-Implementation-of-a-Hybrid-ADC-DAC-Free-Input-Sparsity-Aware-Precision-Reconfigurable-RRAM-Processing-in-Memory-Chip/</url>
+      
+        <content type="html"><![CDATA[<h1 id="探索bit级别sparsity的存内计算核——JSSC2023-1"><a href="#探索bit级别sparsity的存内计算核——JSSC2023-1" class="headerlink" title="探索bit级别sparsity的存内计算核——JSSC2023.1"></a>探索bit级别sparsity的存内计算核——JSSC2023.1</h1><img src="/2023/12/25/JSSC-2023-2-Design-and-Implementation-of-a-Hybrid-ADC-DAC-Free-Input-Sparsity-Aware-Precision-Reconfigurable-RRAM-Processing-in-Memory-Chip/2024-06-08-11-13-49.png" class=""><p>该篇文章由电子科大与北大联合发表。摘要截图如下：<br><img src="/2023/12/25/JSSC-2023-2-Design-and-Implementation-of-a-Hybrid-ADC-DAC-Free-Input-Sparsity-Aware-Precision-Reconfigurable-RRAM-Processing-in-Memory-Chip/image-2.png" class="" title="Alt text"></p><img src="/2023/12/25/JSSC-2023-2-Design-and-Implementation-of-a-Hybrid-ADC-DAC-Free-Input-Sparsity-Aware-Precision-Reconfigurable-RRAM-Processing-in-Memory-Chip/image-3.png" class="" title="Alt text"><p>这个加速器的工作原理是bit-serial的存内计算（CIM）架构，将input activation中同一个bit-level的36个bit接在CIM模块的字线（WL）上，接下来每一个clock cycle激活一条WL。如果当前的WL为1，位线（BL）上读出RRAM中存储的weight bit。在每一条BL的下方用一个counter记录BL输出脉冲的个数。BL输出一个脉冲，代表当前input activation与weight的bit相乘等于”1”。而下面的counter就用于这些”1”的累加，最后通过shifter移位器左移相应的bit level即可。尽管这种架构能够节省ADC/DAC的面积和功耗，但也带来了计算密度低的缺点，它的macro大小为36$\times$128，平均一个clock cycle只能计算128个1bit乘法。根据该文章后边的数据，在22nm工艺下这样的cell大小为443.8$\mu m^2$。对于100MHz的工作频率而言，一个macro最高的throughput能达到0.4GOPs。该加速器共有128个这样的macro，可以计算其理论上最高吞吐量为204.8GOPs（I4W4）。<br><img src="/2023/12/25/JSSC-2023-2-Design-and-Implementation-of-a-Hybrid-ADC-DAC-Free-Input-Sparsity-Aware-Precision-Reconfigurable-RRAM-Processing-in-Memory-Chip/image-4.png" class="" title="Alt text"><br>可见这样的架构如果不利用好它串行输入input activation的特性，在吞吐量上是十分吃亏的。因为，该加速器除了对每一层的activation都量化到不同的bit精度之外(称为dynamic precision)，还设计了用于处理bit级别sparsity的模块。<br><img src="/2023/12/25/JSSC-2023-2-Design-and-Implementation-of-a-Hybrid-ADC-DAC-Free-Input-Sparsity-Aware-Precision-Reconfigurable-RRAM-Processing-in-Memory-Chip/image-5.png" class="" title="Alt text"><br>这个结构对接入WL的input sparsity进行过滤，当WL上为0时，MUX将前一级的脉冲接到后一级去，从而跳过了这条WL上的input sparsity，可以说是非常巧妙了。</p><p>该芯片制程为180nm，总面积为$35.26nm^2$。其中大多数电路为数字电路。从它的power breakdown图来看，它的大多数功耗由ripple counter产生（56.5%）。文中有对ripple counter的面积消耗做一个讨论。在180nm中，10-b的ripple counter所占面积为$ 70 \times 14 \mu m $, 一个D触发器面积为$ 7 \times 14 \mu m $, 而一个工作在100MHz下的10b SAR ADC面积为$ 256 \times 195 \mu m $，因而文中说使用ripple counter在面积上是很划算的。但该芯片需要使用$ 256 \times 128 = 32K $个这样的counter，成为了该芯片counter上的功耗与面积消耗如此之大的原因。<br><img src="/2023/12/25/JSSC-2023-2-Design-and-Implementation-of-a-Hybrid-ADC-DAC-Free-Input-Sparsity-Aware-Precision-Reconfigurable-RRAM-Processing-in-Memory-Chip/2024-06-08-11-29-47.png" class=""></p><h3 id="为什么这个CIM加速器不需要ADC和DAC"><a href="#为什么这个CIM加速器不需要ADC和DAC" class="headerlink" title="为什么这个CIM加速器不需要ADC和DAC?"></a>为什么这个CIM加速器不需要ADC和DAC?</h3><p>这是因为input是一个一个脉冲输入的，且CIM单元采用了数字计算的模块，利用一个counter将结果累加起来，所以输出也是数字信号，由于不存在模拟域的计算，所以不需要ADC和DAC。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 芯片设计 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 存内计算 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>LLM量化工具包</title>
+      <link href="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/"/>
+      <url>/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/</url>
+      
+        <content type="html"><![CDATA[<h2 id="LLM量化工具包"><a href="#LLM量化工具包" class="headerlink" title="LLM量化工具包"></a>LLM量化工具包</h2><p>今天用一天时间整理一下当前对大型语言模型（LLM）各个主流量化方法的思路，看看能不能得到启发。</p><h4 id="1-I-BERT-ICML-2021"><a href="#1-I-BERT-ICML-2021" class="headerlink" title="[1] I-BERT [ICML 2021]"></a>[1] I-BERT [ICML 2021]</h4><p>I-BERT应该是将INT型量化引入Transformer模型的开山之作。其目的主要是为了去除浮点数逻辑的巨大开销，原文中提到：<br><img src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image.png" class="" title="Alt text"><br>除了完成了各个Non-linear Function （GeLU, Softmax，LayerNorm）的量化外。I-BERT实现了所有矩阵运算都量化至8bit，听起来似乎十分激进，但根据实验，它在RoBERTa-Base/Large上的GLUE分数比浮点模型还要分别高0.3和0.5。</p><h4 id="2-ZeroQuant-NIPS-2022"><a href="#2-ZeroQuant-NIPS-2022" class="headerlink" title="[2] ZeroQuant [NIPS 2022]"></a>[2] ZeroQuant [NIPS 2022]</h4><p>ZeroQuant介绍了一种训练后量化：Post Training Quantization (PTQ) 的方法。之所以不采用以往的量化感知训练: quantization aware training（QAT）的方法，是因为对于LLM而言，受限于发布者的保护性策略，往往无法获得其训练集。<br>它采用了以下方法：</p><ol><li>group-wise quantization for weight, token-wise quantization for activation。<br>将weight一组一组分别进行量化，每个token单独进行量化——分别计算scale。</li><li>引入了知识蒸馏(Knowledge distillation)的方法<br>本质上，这个work就是一个group-wise quantization，。之所以叫ZeroQuant，是因为他们不需要提前经过一个calibration来搜索activation的scale。weight的scale提前搜好，activation的scale用kernal fusion解决</li></ol><h4 id="3-LLM-int8-NIPS-2022"><a href="#3-LLM-int8-NIPS-2022" class="headerlink" title="[3] LLM.int8() [NIPS 2022]"></a>[3] LLM.int8() [NIPS 2022]</h4><p>这篇文章将outliers定义为highly systematic emergent features,<br><img src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-1.png" class="" title="Alt text"><br>这篇文章的主要思路是把outlier所处了一列（feature）与其余的channel分开量化，outlier采用16bit浮点数，其余用Int8类型。Outliers feature仅仅占0.1%的总feature数。<br>文章提出的寻找outlier的方法为：对于Transformer的一个hidden state（Q,K,V,output,FC1）而言，其某一列如果至少有一个值大于6.0，那么就对这一列进行跟踪。如果后续这一列在25%的Transformer hidden state都有值大于6.0，并且覆盖到了25%以上的token数目，那么这一列将被标记为Outlier feature。(attention layer与FC2不进行分析)</p><p>之所以用上面寻找outlier的方法基于下面这个发现：outlier的出现是系统化的（systematic）—— 对于一个Transformer的feature，要么一直出现outlier，要么从来不出现outlier。</p><p>该work成功将拥有175B参数的GPT3量化到了INT8 （其中0.1%是FP16）</p><h4 id="4-OPTQ-ICLR-2023"><a href="#4-OPTQ-ICLR-2023" class="headerlink" title="[4] OPTQ [ICLR 2023]"></a>[4] OPTQ [ICLR 2023]</h4><p>第一次将拥有100B以上的大模型量化到了3/4bit，它基于Optimal Brain Quantization (OBQ)的方法：<br>量化的目标可以写作下式：<br><img src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-5.png" class="" title="Alt text"><br>或者可以写成如下形式：<br><img src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-3.png" class="" title="Alt text"><br>OBQ每次量化一个weight。量化之后，对这个weight所在的那一行中其他weight进行更新，权重更新矩阵为<br><img src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-4.png" class="" title="Alt text"><br>其中$H_F=2X_FX_F^T$为Hessian Matrix。</p><h4 id="5-BRECQ-ICLR-2021"><a href="#5-BRECQ-ICLR-2021" class="headerlink" title="[5] BRECQ [ICLR 2021]"></a>[5] BRECQ [ICLR 2021]</h4><p>BRECQ希望在层与层之间量化误差（quantization error）的传递(cross-layer dependency)与泛化误差(generalization error)之间取得一个平衡。<br>该量化方案的优化目标并不是最小化损失函数，而是最小化feature map的变化。这样的话，我们量化后的模型就可以每一层每一层得到。<br>首先计算loss关于weigth的Hessian matrix<br><img src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-7.png" class="" title="Alt text"><br>由于预训练后的模型，其gradient会收敛到一个接近于0的值，我们可以认为loss的Hessian matrix是半正定的——Hessian matrix为半正定的函数是一个凸函数（loss在其邻域内为最小值）<br>所以上式的第一项趋近于0。<br>所以就变成了下面这个式子<img src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-9.png" class="" title="Alt text"><br><img src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-10.png" class="" title="Alt text"><br>这个Hessian matrix提供了各个层之间的依赖(dependency)信息<br>训练的目标为：<br><img src="/2023/12/21/LLM%E9%87%8F%E5%8C%96%E5%B7%A5%E5%85%B7%E5%8C%85/image-11.png" class="" title="Alt text"><br>每次量化当前block的weight并更新剩余的weight，直到整个模型完成量化。</p><h4 id="6-Bit-Split-ICML-2020"><a href="#6-Bit-Split-ICML-2020" class="headerlink" title="[6] Bit-Split [ICML 2020]"></a>[6] Bit-Split [ICML 2020]</h4><p>这篇文章提出了传统量化算法存在的三个问题：1. 对神经网络的每一层的量化独立进行，本层的量化误差最小化不代表整个模型的量化误差最小化。2. 量化过程仅仅优化如clipping value与quantization scales之类的量化参数，而量化后的weight是被动地被舍入操作（rounding operation）调节，实际上量化参数与最终的计算结果并没有直接的相关性。3. 对weight的量化和对input的量化分开进行。<br>所以这篇文章的主要思路是把INT类型的数拆分为一个一个的bit，之后从MSB开始依次对每一个bit搜索其与浮点模型误差最小的取值，最后再把各个bit缝合(stitching)起来。由于低位的bit考虑了高位bit的量化误差，所以实现了量化参数与weight同时优化。</p><h4 id="7-AICQ-ICML-2019"><a href="#7-AICQ-ICML-2019" class="headerlink" title="[7] AICQ [ICML 2019]"></a>[7] AICQ [ICML 2019]</h4><p>该论文主要创新点是run-time dynamic quantization， 量化相关的参数（clipping value，quantization scales）在inference的过程中得到，它们是动态调整的，极大程度提高了量化后模型的表现。</p><h4 id="8-Power-aware-Quantization-ICLR-2020"><a href="#8-Power-aware-Quantization-ICLR-2020" class="headerlink" title="[8] Power-aware Quantization [ICLR 2020]"></a>[8] Power-aware Quantization [ICLR 2020]</h4><p>该论文创新点为power-aware quantization</p><h3 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h3><p><font face="Times new roman" size=3><br>[1] S. Kim, A. Gholami, Z. Yao, M. W. Mahoney, and K. Keutzer, “I-BERT:Integer-only BERT quantization,” in <em>Proc. Int. conf. mach. learn. (ICML)</em>, 2021, pp. 5506–5518.<br>[2] Z. Yao, et al., “Zeroquant: Efficient and affordable post-training quantization for large-scale transformers,” in <em>Proc. Int. Conf. Neural Inf. Process. Syst. (NIPS)</em>, 2022. pp 27168-27183.<br>[3] T. Dettmers, M. Lewis, Y. Belkada, and L. Zettlemoyer, “Gpt3. int8 (): 8-bit matrix multiplication for transformers at scale,” in <em>Proc. Int. Conf. Neural Inf. Process. Syst. (NIPS)</em>, 2022. pp. 30318-30332.<br>[4] E. Frantar, et al., “OPTQ: Accurate quantization for generative pre-trained transformers,” in <em>Proc. Int. Conf. Learn. Represent. (ICLR)</em>, Oct. 2022.<br>[5] Y. Li, et al., “BRECQ: Pushing the Limit of Post-Training Quantization by Block Reconstruction,” in <em>Proc. Int. Conf. Learn. Represent. (ICLR)</em>, Oct. 2021.<br>[6] P. Wang, et al., “Towards accurate post-training network quantization via bit-split and stitching,”  in <em>Proc. Int. conf. mach. learn. (ICML)</em>, 2020, pp. 9847-9856.<br>[7] Banner, Y. Nahshan, and D. Soudry, “Post training 4-bit quantization of convolutional networks for rapid-deployment,” in <em>Proc. Int. Conf. Neural Inf. Process. Syst. (NIPS)</em>, 2019, pp. 7948–7956.<br>[8] Alizadeh, Milad, et al. “Gradient $\ell_1 $ Regularization for Quantization Robustness.” International Conference on Learning Representations.</p><font>]]></content>
+      
+      
+      <categories>
+          
+          <category> 加速算法 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 量化 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+  
+  
+    
+    
+    <entry>
+      <title></title>
+      <link href="/js/cursor.js"/>
+      <url>/js/cursor.js</url>
+      
+        <content type="html"><![CDATA[var CURSOR;Math.lerp = (a, b, n) => (1 - n) * a + n * b;const getStyle = (el, attr) => {    try {        return window.getComputedStyle            ? window.getComputedStyle(el)[attr]            : el.currentStyle[attr];    } catch (e) {}    return "";};class Cursor {    constructor() {        this.pos = {curr: null, prev: null};        this.pt = [];        this.create();        this.init();        this.render();    }    move(left, top) {        this.cursor.style["left"] = `${left}px`;        this.cursor.style["top"] = `${top}px`;    }    create() {        if (!this.cursor) {            this.cursor = document.createElement("div");            this.cursor.id = "cursor";            this.cursor.classList.add("hidden");            document.body.append(this.cursor);        }        var el = document.getElementsByTagName('*');        for (let i = 0; i < el.length; i++)            if (getStyle(el[i], "cursor") == "pointer")                this.pt.push(el[i].outerHTML);        document.body.appendChild((this.scr = document.createElement("style")));        // 这里改变鼠标指针的颜色 由svg生成        this.scr.innerHTML = `* {cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' width='8px' height='8px'><circle cx='4' cy='4' r='4' opacity='.5'/></svg>") 4 4, auto}`;    }    refresh() {        this.scr.remove();        this.cursor.classList.remove("hover");        this.cursor.classList.remove("active");        this.pos = {curr: null, prev: null};        this.pt = [];        this.create();        this.init();        this.render();    }    init() {        document.onmouseover  = e => this.pt.includes(e.target.outerHTML) && this.cursor.classList.add("hover");        document.onmouseout   = e => this.pt.includes(e.target.outerHTML) && this.cursor.classList.remove("hover");        document.onmousemove  = e => {(this.pos.curr == null) && this.move(e.clientX - 8, e.clientY - 8); this.pos.curr = {x: e.clientX - 8, y: e.clientY - 8}; this.cursor.classList.remove("hidden");};        document.onmouseenter = e => this.cursor.classList.remove("hidden");        document.onmouseleave = e => this.cursor.classList.add("hidden");        document.onmousedown  = e => this.cursor.classList.add("active");        document.onmouseup    = e => this.cursor.classList.remove("active");    }    render() {        if (this.pos.prev) {            this.pos.prev.x = Math.lerp(this.pos.prev.x, this.pos.curr.x, 0.15);            this.pos.prev.y = Math.lerp(this.pos.prev.y, this.pos.curr.y, 0.15);            this.move(this.pos.prev.x, this.pos.prev.y);        } else {            this.pos.prev = this.pos.curr;        }        requestAnimationFrame(() => this.render());    }}(() => {    CURSOR = new Cursor();    // 需要重新获取列表时，使用 CURSOR.refresh()})();]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/about/index.html"/>
+      <url>/about/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/css/custom.css"/>
+      <url>/css/custom.css</url>
+      
+        <content type="html"><![CDATA[/* 鼠标样式 */#cursor {    position: fixed;    width: 16px;    height: 16px;    /* 这里改变跟随的底色 */    background: var(--theme-color);    border-radius: 8px;    opacity: 0.25;    z-index: 10086;    pointer-events: none;    transition: 0.2s ease-in-out;    transition-property: background, opacity, transform;  }    #cursor.hidden {    opacity: 0;  }    #cursor.hover {    opacity: 0.1;    transform: scale(2.5);    -webkit-transform: scale(2.5);    -moz-transform: scale(2.5);    -ms-transform: scale(2.5);    -o-transform: scale(2.5);  }    #cursor.active {    opacity: 0.5;    transform: scale(0.5);    -webkit-transform: scale(0.5);    -moz-transform: scale(0.5);    -ms-transform: scale(0.5);    -o-transform: scale(0.5);  }]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>categories</title>
+      <link href="/categories/index.html"/>
+      <url>/categories/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>tags</title>
+      <link href="/tags/index.html"/>
+      <url>/tags/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/movies/index.html"/>
+      <url>/movies/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/link/index.html"/>
+      <url>/link/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/music/index.html"/>
+      <url>/music/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+  
+</search>
