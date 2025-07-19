@@ -4,6 +4,71 @@
   
     
     <entry>
+      <title>AMS仿真流程</title>
+      <link href="/2025/07/09/AMS%E4%BB%BF%E7%9C%9F%E6%B5%81%E7%A8%8B/"/>
+      <url>/2025/07/09/AMS%E4%BB%BF%E7%9C%9F%E6%B5%81%E7%A8%8B/</url>
+      
+        <content type="html"><![CDATA[<h1 id="AMS仿真流程"><a href="#AMS仿真流程" class="headerlink" title="AMS仿真流程"></a>AMS仿真流程</h1>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>对定制CIM macro的建模分析</title>
+      <link href="/2025/07/09/%E5%AF%B9%E5%AE%9A%E5%88%B6CIM-macro%E7%9A%84%E5%BB%BA%E6%A8%A1%E5%88%86%E6%9E%90/"/>
+      <url>/2025/07/09/%E5%AF%B9%E5%AE%9A%E5%88%B6CIM-macro%E7%9A%84%E5%BB%BA%E6%A8%A1%E5%88%86%E6%9E%90/</url>
+      
+        <content type="html"><![CDATA[<h1 id="对定制CIM-macro的建模分析"><a href="#对定制CIM-macro的建模分析" class="headerlink" title="对定制CIM macro的建模分析"></a>对定制CIM macro的建模分析</h1>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>后端版图中的闩锁效应及解决方案</title>
+      <link href="/2025/05/30/%E5%90%8E%E7%AB%AF%E7%89%88%E5%9B%BE%E4%B8%AD%E7%9A%84%E9%97%A9%E9%94%81%E6%95%88%E5%BA%94%E5%8F%8A%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88/"/>
+      <url>/2025/05/30/%E5%90%8E%E7%AB%AF%E7%89%88%E5%9B%BE%E4%B8%AD%E7%9A%84%E9%97%A9%E9%94%81%E6%95%88%E5%BA%94%E5%8F%8A%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88/</url>
+      
+        <content type="html"><![CDATA[<h1 id="后端版图中的闩锁效应及解决方案"><a href="#后端版图中的闩锁效应及解决方案" class="headerlink" title="后端版图中的闩锁效应及解决方案"></a>后端版图中的闩锁效应及解决方案</h1><p>该部分的详细知识在博客<a href="https://www.cnblogs.com/yeungchie/p/13961469.html已阐述的很清晰，这里根据自己的经验做一些补充。">https://www.cnblogs.com/yeungchie/p/13961469.html已阐述的很清晰，这里根据自己的经验做一些补充。</a></p><h2 id="对闩锁效应的简单解释："><a href="#对闩锁效应的简单解释：" class="headerlink" title="对闩锁效应的简单解释："></a>对闩锁效应的简单解释：</h2><p>N-Well和P-Substrate之间形成了一个PN结。为了使得管子工作正常，该PN结需要被反向偏置形成二极管隔离区域。所以N-Well需要接VDD而P-Substrate需要接GND。</p><p>但如果工作期间，电荷在N-well中积聚。它会改变 P 沟道器件的电位差，从而可能导通这个PN结被正向偏置(Forwad Bias)。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>Digital Bridge工程小结</title>
+      <link href="/2025/05/27/Digital-Bridge%E5%B7%A5%E7%A8%8B%E5%B0%8F%E7%BB%93/"/>
+      <url>/2025/05/27/Digital-Bridge%E5%B7%A5%E7%A8%8B%E5%B0%8F%E7%BB%93/</url>
+      
+        <content type="html"><![CDATA[<h1 id="Digital-Bridge工程小结"><a href="#Digital-Bridge工程小结" class="headerlink" title="Digital-Bridge工程小结"></a>Digital-Bridge工程小结</h1><p>自今年3月底，我全程高强度参与了 EPFL 脑机接口（Brain-Computer Interface, BCI）芯片的设计与开发工作。如今，项目已顺利收官。这是迄今为止我所参与过规模最大、复杂度最高的一次芯片流片任务，过程中经历了诸多挑战与反复。借此机会，我将这段宝贵的经验做一次系统性总结，以便今后进行自我复盘。</p><p>首先贴出该芯片的一些spec:</p><ol><li>芯片面积为 $3.1\times3.2 mm^2$，其中数字部分占 $1.2\times3.2 mm^2$ ，包含定制的AFE(Analog Front End)，(CIM)Compute-In-Memory模块以及台积电提供的Low power low leakage SRAM单元。</li><li>数字部分采用Digital-as-a-top流程进行设计，将各个CIM模块建模为包含时序信息的reference model，然后与其他模块进行联合仿真。</li><li>片上包含一个End-to-end的神经网络，用于脑皮层电图（ECoG）信号的分析。</li><li>加入了用于可测性的Scan chain，可以对神经网络的每一层单独进行调试。</li></ol><h3 id="参数化设计"><a href="#参数化设计" class="headerlink" title="参数化设计"></a>参数化设计</h3><p>三月中旬收到了消息得知最后的dealine是4月30日。当时隐约感到时间极其地紧迫，而整个RTL代码设计还停留在只有顶层模块和控制信号的阶段。由于算法那里的模型架构以及量化工作迟迟没能确定下来。我们直接选择了对神经网络的RTL实现进行参数化设计，以便后面调整起来方便。在进行综合之前，所有的模型参数都被存在一个名为NNparam.vh的文件中。综合前需要将所有的NNparam.vh的参数复制到顶层，否则会出现无法综合的问题，这里要确保顶层的参数定义与NNparam.vh的参数保持一致。</p><p><img src="2025-05-28T121338.png" alt="2025-05-28T121338" title="将所有模型参数从NNparam.vh拷贝到顶层"></p><h3 id="冗余操作在工作副本上执行"><a href="#冗余操作在工作副本上执行" class="headerlink" title="冗余操作在工作副本上执行"></a>冗余操作在工作副本上执行</h3><p>在github上进行工程版本管理时，由于git本身存在上传与下载文件大小的限制，可以创建两个文件夹，一个保存重要的代码以及script脚本文件，用于上传github便于版本同步。另一个则用于运行内存占用较大的操作，比如仿真产生的波形文件。一开始我们将Vivado上的工程文件全部上传做版本管理，但由于工程在不同组员之间互相分享时，各自运行会产生许许多多的临时文件，这对每次的push和pull造成了大量冗余数据传输。所以我们复制了原本的Vivado Project，在第二个Vivado Project全部引用第一个Vivado Project的文件，但仿真与debug全部在第二个Vivado Project里操作，而git pull与push在第一个Vivado Project里操作，这样每个组员可以在本地跑各自的仿真同时不会打乱原有的工程结构。这也符合最小化冗余的工程管理思想，将主干工程与工作副本相分离，既避免了干扰，使得代码管理更加清晰可靠，也不会因为个人调试操作污染主项目，引发无意义的版本冲突。</p><h3 id="保持清晰的代码设计风格"><a href="#保持清晰的代码设计风格" class="headerlink" title="保持清晰的代码设计风格"></a>保持清晰的代码设计风格</h3><p>代码不能写的太乱。大的system做出来了之后，很容易忘记之前实现的细节，应有一条脉络清晰的主线。</p><h3 id="验证中发现的问题"><a href="#验证中发现的问题" class="headerlink" title="验证中发现的问题"></a>验证中发现的问题</h3><ol><li><p>shift溢出问题<br>神经网络的量化采用的最经典的Integer-Arithmatic only的方案，这意味着在每一次矩阵乘法运算之后，结果都要乘以一个M值之后进行右移。一开始的代码中有许多变量没有给够位宽，导致乘以M值之后发生溢出。在进行数值验证的过程中我们一直在解决代码中存在的溢出问题。第一天完成了前10个样本的验证，但在第12个样本处出现错误。第二天修复了第12个，但又在第13个出错，随后又陆续在第16和第19个样本中发现问题。经过一周的调试，前期仿真中存在的问题基本得到解决。在全部90个样本中，最终仅有3个样本的计算结果存在极其微小的数值差异，但所有样本的分类结果均与算法输出完全一致。</p></li><li><p>所有的模块在运算完之后要回到初始的状态。</p></li><li>CIM reference model写入的时候注意WBL与WWL之间的竞争冒险问题。在建模的时候，reference model中的时序信息（delay等）尽可能符合macro在cadence里的仿真。当建模很困难的时候，考虑加入一些处理output的数字电路，形成一个整体的macro，这样只需要建模最后数字信号的输出delay即可。比如sampling ADC的output缺乏同步的时钟信号，我们可以用数字控制模块产生的sampling pulse来作为同步的时钟写入时序信息。</li><li>综合后仿真不需要读入.sdf，因为在CTS之前不存在时钟树，clock gating产生的时钟信号会直接消失掉。</li><li>Timing Constraint一定要尽可能完善，一定要根据当前的process去写。28，65。第一版综合出来的accumulator出现了严重的signal integrity的问题，主要原因是65nm LPHVT库clock buffer的驱动能力不够，后续添加了input driver的约束后成功修复了这个问题。</li></ol><p>对于clock transition time的约束。因为一开始代码中的一些小问题导致我们误以为65nm LPHVT的工艺下，只要系统一做大，transition time就会变得非常高。一开始我用我从28nm HPC+工艺下的时序约束做综合，28nm下的时序约束，发现总是会爆出大量的transition time slack的问题（约有3ns左右，远远超出了设定的100ps的约束），这一度让我们以为是65nm LPHVT的库不适合做大系统。中间我还尝试把时钟约束中的transition time调为了5ns（后来发现这其实是掩耳盗铃的解法）。后面才发现，问题主要出在系统在设计的时候存在许多fanout非常大的net，</p><p><img src="2025-06-15T170826.png" alt="2025-06-15T170826"></p><p>在工程的早期，我们可能对电路中一些具体的时序进行确定，一般而言这是一个trial&amp;error的过程，一边进行用VCS在数字域进行仿真的同时，另一边用AMS在模拟域进行仿真。这里举一个例子，左图是这里对SRAM cell写的reference model，第四个时序代表着，当Write Word Line置高之后，它必须保持至少80ns才能让数据成功被写入进memory里去。我记得这一次流片，我们后仿出现的最后一个问题就是在这里，解决了它才让我们成功通过全部的后仿真</p><h3 id="验证结构"><a href="#验证结构" class="headerlink" title="验证结构"></a>验证结构</h3><p>End-to-end python与systemVerilog联合验证。<br>Jupyter Note以及assert方法。</p><p>用if语句控制开关assert。</p><p>设计时中提前考虑潜在的fanout与criticle path问题。</p><p>Verilog代码风格对综合后的netlist有很大的影响。<br>    状态机的三段式写法。<br>    同步reset与异步reset不能混用。<br>    Designware与台积电的SRAM要单独例化在一个inst module里面。<br>    有一个关键的计数器信号在reset的时候会复位到另一个寄存器上，又因为当时使用的是同步复位信号，导致复位时两个寄存器的datapath不存在任何延迟，从而爆出大量hold slack的问题。</p><p>综合之后一定要尽可能清掉所有的Spyglass warning。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>Nature 2023: 用脑-脊髓接口让脊髓损伤病人正常行走</title>
+      <link href="/2025/05/26/Nature-2023-%E7%94%A8%E8%84%91-%E8%84%8A%E9%AB%93%E6%8E%A5%E5%8F%A3%E8%AE%A9%E8%84%8A%E9%AB%93%E6%8D%9F%E4%BC%A4%E7%97%85%E4%BA%BA%E6%AD%A3%E5%B8%B8%E8%A1%8C%E8%B5%B0/"/>
+      <url>/2025/05/26/Nature-2023-%E7%94%A8%E8%84%91-%E8%84%8A%E9%AB%93%E6%8E%A5%E5%8F%A3%E8%AE%A9%E8%84%8A%E9%AB%93%E6%8D%9F%E4%BC%A4%E7%97%85%E4%BA%BA%E6%AD%A3%E5%B8%B8%E8%A1%8C%E8%B5%B0/</url>
+      
+        <content type="html"><![CDATA[<h1 id="Walking-naturally-after-spinal-cord-injury-using-a-brain–spine-interface"><a href="#Walking-naturally-after-spinal-cord-injury-using-a-brain–spine-interface" class="headerlink" title="Walking naturally after spinal cord injury using a brain–spine interface"></a>Walking naturally after spinal cord injury using a brain–spine interface</h1><p>文章来子EPFL的Henri Lorach教授团队。临窗上一些病人面临chronic tetraplegia（慢性四肢瘫痪）。</p><p>使用了WIMAGINE technology，<br><img src="2025-05-26T122912.png" alt="2025-05-26T122912"></p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>多电压域设计中power stripe与power rail延长线的设置</title>
       <link href="/2025/05/13/%E5%A4%9A%E7%94%B5%E5%8E%8B%E5%9F%9F%E8%AE%BE%E8%AE%A1%E4%B8%ADpower-stripe%E4%B8%8Epower-rail%E5%BB%B6%E9%95%BF%E7%BA%BF%E7%9A%84%E8%AE%BE%E7%BD%AE/"/>
       <url>/2025/05/13/%E5%A4%9A%E7%94%B5%E5%8E%8B%E5%9F%9F%E8%AE%BE%E8%AE%A1%E4%B8%ADpower-stripe%E4%B8%8Epower-rail%E5%BB%B6%E9%95%BF%E7%BA%BF%E7%9A%84%E8%AE%BE%E7%BD%AE/</url>
@@ -21,7 +86,7 @@
       <link href="/2025/04/23/Digital-as-a-top%E6%B5%81%E7%A8%8B/"/>
       <url>/2025/04/23/Digital-as-a-top%E6%B5%81%E7%A8%8B/</url>
       
-        <content type="html"><![CDATA[<h1 id="Digital-as-a-top流程"><a href="#Digital-as-a-top流程" class="headerlink" title="Digital as a top流程"></a>Digital as a top流程</h1><h2 id="编写-lib文件"><a href="#编写-lib文件" class="headerlink" title="编写.lib文件"></a>编写.lib文件</h2><p>input pin的timing constraint如下图所示：<br><img src="2025-04-23T150846.png" alt="2025-04-23T150846"></p><p>其含义为，当遇到CLKA上升沿时，</p><p>output pin constraint<br><img src="2025-04-23T151046.png" alt="2025-04-23T151046"></p><p>这里input delay包含setup与hold两类timing check。以setup time check 0.099为例，信号变化需要至少在clock上升沿之前0.099ns。同理以hold time check 0.072为例，信号变化需要至少在clock上升沿之后0.072ns。</p><p><img src="2025-04-23T160754.png" alt="2025-04-23T160754"></p><p>output delay的含义为<br><img src="2025-04-23T160820.png" alt="2025-04-23T160820"></p><p>output delay设置需要包含路径延迟以及外部寄存器的setup time requirements。</p><h3 id="什么是时序弧的unateness"><a href="#什么是时序弧的unateness" class="headerlink" title="什么是时序弧的unateness?"></a>什么是时序弧的unateness?</h3><p>在编写.lib文件时，遇到timing_sense的条目。在TSMC SRAM的输出pin QA的定义中，timing_sense设置为non_unate，这是什么意思呢？<br><img src="2025-04-24T164016.png" alt="2025-04-24T164016"></p><p>unateness主要用于回答这个问题：<br>如果input发生了变化（比如input置为1），该output会发生什么行为？（output置1？置0？还是保持原值？）</p><p>我们将output可能的行为分为以下三类：</p><ol><li>Positive Unate: Input置为1后，Output也置1或者保持。Input置为0后，Output也置0或者保持。E.g. Buffer, 与门，或门。</li><li>Negative Unate: Input置为1后，Output置0或者保持。Input置为0后，Output置1或者保持。E.g. 非门。</li><li>Non-Unate: Output的行为与input的行为无关。</li></ol><p>对于SRAM的输出，Output取决于SRAM中储存的值，所以直接设置为non-unate即可。</p><h2 id="Merge-GDS之后需要注意的点"><a href="#Merge-GDS之后需要注意的点" class="headerlink" title="Merge GDS之后需要注意的点"></a>Merge GDS之后需要注意的点</h2><p>为了防止merge之后有DRC rule的报错，现在将PR中各个阶段的check list记录如下：</p><ol><li><p>Floorplan阶段，所有的hard macro和block需要打Halo，并在边界上打上针对性的RouteBlockage。所谓针对性的RouteBlockage即防止在hard macro的边界附近，外部走线与内部走线存在距离的问题。在我参与的第四次流片任务DigitalBridge芯片的设计中，我们的Compute-In-memory模块在边界上存在非常粗的M3与M4金属，而外部走线会忽略这些边界上金属的存在，从而使得在streamout之后，边界上的M3和M4走线报出大量DRC金属边界的错误。</p></li><li><p>打Stripe的时候，可以选择让stripe merge with ring，防止power stripe与power ring重叠之后，Via产生冲突。Powerplan结束后，尽量清理掉所有杂线，给后续routing留出空间的同时，也能避免很多潜在的DRC问题。</p></li><li><p>IO ring与core之间至少留出一定的距离（28nm HPC+工艺需至少留出25um的间距）</p></li></ol><h2 id="修复verify-drc后Metal-short的问题："><a href="#修复verify-drc后Metal-short的问题：" class="headerlink" title="修复verify_drc后Metal_short的问题："></a>修复verify_drc后Metal_short的问题：</h2><p>使用以下命令打印出所有metal short的net name<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dbget [dbget top.markers.subType Metal_short -p].objects.name</span><br></pre></td></tr></table></figure></p><p>如果short_nets 列表中出现 0x0，说明有些 marker 没有关联到 net（或者说 dbget 查询到了空对象），这种情况在实际 DRC 中是可能的，比如 marker 和某些 vias、shapes关联但没 net。<br>可以在list中使用lsearch语句：<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">set short_nets [lsearch -all -inline -not -exact $short_nets &quot;0x0&quot;]</span><br></pre></td></tr></table></figure></p><p>完整的script如下：<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">set short_nets &#123;&#125;</span><br><span class="line">foreach marker [dbget top.markers.subType Metal_short -p] &#123;</span><br><span class="line">    foreach net [dbget $marker.objects.objects.name] &#123;</span><br><span class="line">        lappend short_nets $net</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line">set short_nets [lsort -unique $short_nets]</span><br></pre></td></tr></table></figure></p><p>之后重新执行ecoRoute即可</p>]]></content>
+        <content type="html"><![CDATA[<h1 id="Digital-as-a-top流程"><a href="#Digital-as-a-top流程" class="headerlink" title="Digital as a top流程"></a>Digital as a top流程</h1><h2 id="编写-lib文件"><a href="#编写-lib文件" class="headerlink" title="编写.lib文件"></a>编写.lib文件</h2><p>input pin的timing constraint如下图所示：<br><img src="2025-04-23T150846.png" alt="2025-04-23T150846"></p><p>其含义为，当遇到CLKA上升沿时，</p><p>output pin constraint<br><img src="2025-04-23T151046.png" alt="2025-04-23T151046"></p><p>这里input delay包含setup与hold两类timing check。以setup time check 0.099为例，信号变化需要至少在clock上升沿之前0.099ns。同理以hold time check 0.072为例，信号变化需要至少在clock上升沿之后0.072ns。</p><p><img src="2025-04-23T160754.png" alt="2025-04-23T160754"></p><p>output delay的含义为<br><img src="2025-04-23T160820.png" alt="2025-04-23T160820"></p><p>output delay设置需要包含路径延迟以及外部寄存器的setup time requirements。</p><h3 id="什么是时序弧的unateness"><a href="#什么是时序弧的unateness" class="headerlink" title="什么是时序弧的unateness?"></a>什么是时序弧的unateness?</h3><p>在编写.lib文件时，遇到timing_sense的条目。在TSMC SRAM的输出pin QA的定义中，timing_sense设置为non_unate，这是什么意思呢？<br><img src="2025-04-24T164016.png" alt="2025-04-24T164016"></p><p>unateness主要用于回答这个问题：<br>如果input发生了变化（比如input置为1），该output会发生什么行为？（output置1？置0？还是保持原值？）</p><p>我们将output可能的行为分为以下三类：</p><ol><li>Positive Unate: Input置为1后，Output也置1或者保持。Input置为0后，Output也置0或者保持。E.g. Buffer, 与门，或门。</li><li>Negative Unate: Input置为1后，Output置0或者保持。Input置为0后，Output置1或者保持。E.g. 非门。</li><li>Non-Unate: Output的行为与input的行为无关。</li></ol><p>对于SRAM的输出，Output取决于SRAM中储存的值，所以直接设置为non-unate即可。</p><h2 id="Merge-GDS之后需要注意的点"><a href="#Merge-GDS之后需要注意的点" class="headerlink" title="Merge GDS之后需要注意的点"></a>Merge GDS之后需要注意的点</h2><p>为了防止merge之后有DRC rule的报错，现在将PR中各个阶段的check list记录如下：</p><ol><li><p>Floorplan阶段，所有的hard macro和block需要打Halo，并在边界上打上针对性的RouteBlockage。所谓针对性的RouteBlockage即防止在hard macro的边界附近，外部走线与内部走线存在距离的问题。在我参与的第四次流片任务DigitalBridge芯片的设计中，我们的Compute-In-memory模块在边界上存在非常粗的M3与M4金属，而外部走线会忽略这些边界上金属的存在，从而使得在streamout之后，边界上的M3和M4走线报出大量DRC金属边界的错误。</p></li><li><p>打Stripe的时候，可以选择让stripe merge with ring，防止power stripe与power ring重叠之后，Via产生冲突。Powerplan结束后，尽量清理掉所有杂线，给后续routing留出空间的同时，也能避免很多潜在的DRC问题。</p></li><li><p>IO ring与core之间至少留出一定的距离（28nm HPC+工艺需至少留出25um的间距）</p></li></ol><h2 id="修复verify-drc后Metal-short的问题："><a href="#修复verify-drc后Metal-short的问题：" class="headerlink" title="修复verify_drc后Metal_short的问题："></a>修复verify_drc后Metal_short的问题：</h2><p>使用以下命令打印出所有metal short的net name<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dbget [dbget top.markers.subType Metal_short -p].objects.name</span><br></pre></td></tr></table></figure></p><p>如果short_nets 列表中出现 0x0，说明有些 marker 没有关联到 net（或者说 dbget 查询到了空对象），这种情况在实际 DRC 中是可能的，比如 marker 和某些 vias、shapes关联但没 net。<br>可以在list中使用lsearch语句：<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">set short_nets [lsearch -all -inline -not -exact $short_nets &quot;0x0&quot;]</span><br></pre></td></tr></table></figure></p><p>完整的script如下：<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">set short_nets &#123;&#125;</span><br><span class="line">foreach marker [dbget top.markers.subType Metal_short -p] &#123;</span><br><span class="line">    foreach net [dbget $marker.objects.objects.name] &#123;</span><br><span class="line">        lappend short_nets $net</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line">set short_nets [lsort -unique $short_nets]</span><br></pre></td></tr></table></figure></p><p>之后重新执行ecoRoute即可</p><h2 id="Netlist-Debuging"><a href="#Netlist-Debuging" class="headerlink" title="Netlist Debuging"></a>Netlist Debuging</h2><p>synthesis</p><h4 id="混用同步reset和异步reset"><a href="#混用同步reset和异步reset" class="headerlink" title="混用同步reset和异步reset"></a>混用同步reset和异步reset</h4><p><img src="2025-05-21T122817.png" alt="2025-05-21T122817"></p><h4 id="max-transition"><a href="#max-transition" class="headerlink" title="max transition"></a>max transition</h4><p><img src="2025-05-21T122604.png" alt="2025-05-21T122604"></p><h2 id="Digital-as-top中修复DRC需要注意的点"><a href="#Digital-as-top中修复DRC需要注意的点" class="headerlink" title="Digital as top中修复DRC需要注意的点"></a>Digital as top中修复DRC需要注意的点</h2><ol><li>Floorplan之后，检查CIM的边界，使用Halo或Routing Blockage规避潜在的金属间距造成的DRC错误。</li><li>在Floorplan和Powerplan的过程中，时常使用verify_drc命令进行检查，确保power stripe，power ring之间的via不存在drc问题。</li></ol><p><img src="2025-05-21T123639.png" alt="2025-05-21T123639"></p><p>检查GNC_rule，如果GNC_rule错误，在Virtuoso进行verilogIn会报奇怪的short问题。</p><h2 id="LVS-BOX"><a href="#LVS-BOX" class="headerlink" title="LVS BOX"></a>LVS BOX</h2><h1 id="reference-model时序不匹配的问题"><a href="#reference-model时序不匹配的问题" class="headerlink" title="reference model时序不匹配的问题"></a>reference model时序不匹配的问题</h1><p>在后仿的时候，定制的硬核部分可以使用reference model进行混仿。因为导入的<br><img src="2025-05-26T170449.png" alt="2025-05-26T170449"></p>]]></content>
       
       
       
@@ -47,7 +112,7 @@
       <link href="/2025/03/19/SRAM-verilog-behavior-model%E5%86%99%E6%B3%95/"/>
       <url>/2025/03/19/SRAM-verilog-behavior-model%E5%86%99%E6%B3%95/</url>
       
-        <content type="html"><![CDATA[]]></content>
+        <content type="html"><![CDATA[<p>以<a href="https://github.com/arktur04/SRAM提供的SRAM行为模型为例。下图展示了它的仿真结果。">https://github.com/arktur04/SRAM提供的SRAM行为模型为例。下图展示了它的仿真结果。</a><br><img src="2025-03-19T142511.png" alt="2025-03-19T142511"><br>该SRAM不涉及时钟<br>其端口定义如下图所示<br><img src="2025-03-19T213741.png" alt="2025-03-19T213741"></p>]]></content>
       
       
       
@@ -1034,19 +1099,19 @@
     
     <entry>
       <title></title>
-      <link href="/js/cursor.js"/>
-      <url>/js/cursor.js</url>
+      <link href="/about/index.html"/>
+      <url>/about/index.html</url>
       
-        <content type="html"><![CDATA[var CURSOR;Math.lerp = (a, b, n) => (1 - n) * a + n * b;const getStyle = (el, attr) => {    try {        return window.getComputedStyle            ? window.getComputedStyle(el)[attr]            : el.currentStyle[attr];    } catch (e) {}    return "";};class Cursor {    constructor() {        this.pos = {curr: null, prev: null};        this.pt = [];        this.create();        this.init();        this.render();    }    move(left, top) {        this.cursor.style["left"] = `${left}px`;        this.cursor.style["top"] = `${top}px`;    }    create() {        if (!this.cursor) {            this.cursor = document.createElement("div");            this.cursor.id = "cursor";            this.cursor.classList.add("hidden");            document.body.append(this.cursor);        }        var el = document.getElementsByTagName('*');        for (let i = 0; i < el.length; i++)            if (getStyle(el[i], "cursor") == "pointer")                this.pt.push(el[i].outerHTML);        document.body.appendChild((this.scr = document.createElement("style")));        // 这里改变鼠标指针的颜色 由svg生成        this.scr.innerHTML = `* {cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' width='8px' height='8px'><circle cx='4' cy='4' r='4' opacity='.5'/></svg>") 4 4, auto}`;    }    refresh() {        this.scr.remove();        this.cursor.classList.remove("hover");        this.cursor.classList.remove("active");        this.pos = {curr: null, prev: null};        this.pt = [];        this.create();        this.init();        this.render();    }    init() {        document.onmouseover  = e => this.pt.includes(e.target.outerHTML) && this.cursor.classList.add("hover");        document.onmouseout   = e => this.pt.includes(e.target.outerHTML) && this.cursor.classList.remove("hover");        document.onmousemove  = e => {(this.pos.curr == null) && this.move(e.clientX - 8, e.clientY - 8); this.pos.curr = {x: e.clientX - 8, y: e.clientY - 8}; this.cursor.classList.remove("hidden");};        document.onmouseenter = e => this.cursor.classList.remove("hidden");        document.onmouseleave = e => this.cursor.classList.add("hidden");        document.onmousedown  = e => this.cursor.classList.add("active");        document.onmouseup    = e => this.cursor.classList.remove("active");    }    render() {        if (this.pos.prev) {            this.pos.prev.x = Math.lerp(this.pos.prev.x, this.pos.curr.x, 0.15);            this.pos.prev.y = Math.lerp(this.pos.prev.y, this.pos.curr.y, 0.15);            this.move(this.pos.prev.x, this.pos.prev.y);        } else {            this.pos.prev = this.pos.curr;        }        requestAnimationFrame(() => this.render());    }}(() => {    CURSOR = new Cursor();    // 需要重新获取列表时，使用 CURSOR.refresh()})();]]></content>
+        <content type="html"><![CDATA[]]></content>
       
     </entry>
     
     
     
     <entry>
-      <title></title>
-      <link href="/about/index.html"/>
-      <url>/about/index.html</url>
+      <title>categories</title>
+      <link href="/categories/index.html"/>
+      <url>/categories/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
       
@@ -1066,9 +1131,20 @@
     
     
     <entry>
-      <title>categories</title>
-      <link href="/categories/index.html"/>
-      <url>/categories/index.html</url>
+      <title></title>
+      <link href="/js/cursor.js"/>
+      <url>/js/cursor.js</url>
+      
+        <content type="html"><![CDATA[var CURSOR;Math.lerp = (a, b, n) => (1 - n) * a + n * b;const getStyle = (el, attr) => {    try {        return window.getComputedStyle            ? window.getComputedStyle(el)[attr]            : el.currentStyle[attr];    } catch (e) {}    return "";};class Cursor {    constructor() {        this.pos = {curr: null, prev: null};        this.pt = [];        this.create();        this.init();        this.render();    }    move(left, top) {        this.cursor.style["left"] = `${left}px`;        this.cursor.style["top"] = `${top}px`;    }    create() {        if (!this.cursor) {            this.cursor = document.createElement("div");            this.cursor.id = "cursor";            this.cursor.classList.add("hidden");            document.body.append(this.cursor);        }        var el = document.getElementsByTagName('*');        for (let i = 0; i < el.length; i++)            if (getStyle(el[i], "cursor") == "pointer")                this.pt.push(el[i].outerHTML);        document.body.appendChild((this.scr = document.createElement("style")));        // 这里改变鼠标指针的颜色 由svg生成        this.scr.innerHTML = `* {cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' width='8px' height='8px'><circle cx='4' cy='4' r='4' opacity='.5'/></svg>") 4 4, auto}`;    }    refresh() {        this.scr.remove();        this.cursor.classList.remove("hover");        this.cursor.classList.remove("active");        this.pos = {curr: null, prev: null};        this.pt = [];        this.create();        this.init();        this.render();    }    init() {        document.onmouseover  = e => this.pt.includes(e.target.outerHTML) && this.cursor.classList.add("hover");        document.onmouseout   = e => this.pt.includes(e.target.outerHTML) && this.cursor.classList.remove("hover");        document.onmousemove  = e => {(this.pos.curr == null) && this.move(e.clientX - 8, e.clientY - 8); this.pos.curr = {x: e.clientX - 8, y: e.clientY - 8}; this.cursor.classList.remove("hidden");};        document.onmouseenter = e => this.cursor.classList.remove("hidden");        document.onmouseleave = e => this.cursor.classList.add("hidden");        document.onmousedown  = e => this.cursor.classList.add("active");        document.onmouseup    = e => this.cursor.classList.remove("active");    }    render() {        if (this.pos.prev) {            this.pos.prev.x = Math.lerp(this.pos.prev.x, this.pos.curr.x, 0.15);            this.pos.prev.y = Math.lerp(this.pos.prev.y, this.pos.curr.y, 0.15);            this.move(this.pos.prev.x, this.pos.prev.y);        } else {            this.pos.prev = this.pos.curr;        }        requestAnimationFrame(() => this.render());    }}(() => {    CURSOR = new Cursor();    // 需要重新获取列表时，使用 CURSOR.refresh()})();]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/link/index.html"/>
+      <url>/link/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
       
@@ -1089,30 +1165,19 @@
     
     <entry>
       <title></title>
-      <link href="/movies/index.html"/>
-      <url>/movies/index.html</url>
-      
-        <content type="html"><![CDATA[]]></content>
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title></title>
-      <link href="/link/index.html"/>
-      <url>/link/index.html</url>
-      
-        <content type="html"><![CDATA[]]></content>
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title></title>
       <link href="/music/index.html"/>
       <url>/music/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/movies/index.html"/>
+      <url>/movies/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
       
