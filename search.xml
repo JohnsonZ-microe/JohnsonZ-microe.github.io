@@ -4,6 +4,33 @@
   
     
     <entry>
+      <title>hello world</title>
+      <link href="/2025/08/16/hello-world/"/>
+      <url>/2025/08/16/hello-world/</url>
+      
+        <content type="html"><![CDATA[<p><img src="images.jpg" alt="图片"></p>]]></content>
+      
+      
+      <categories>
+          
+          <category> test </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> tag1 </tag>
+            
+            <tag> tag2 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>Twin-8T CIM Macro</title>
       <link href="/2025/08/15/Twin-8T-CIM-Macro/"/>
       <url>/2025/08/15/Twin-8T-CIM-Macro/</url>
@@ -147,13 +174,25 @@
     
     
     <entry>
-      <title>SRAM verilog behavior model写法</title>
+      <title>SRAM Verilog behavior model写法</title>
       <link href="/2025/03/19/SRAM-verilog-behavior-model%E5%86%99%E6%B3%95/"/>
       <url>/2025/03/19/SRAM-verilog-behavior-model%E5%86%99%E6%B3%95/</url>
       
         <content type="html"><![CDATA[<p>以<a href="https://github.com/arktur04/SRAM提供的SRAM行为模型为例。下图展示了它的仿真结果。">https://github.com/arktur04/SRAM提供的SRAM行为模型为例。下图展示了它的仿真结果。</a><br><img src="2025-03-19T142511.png" alt="2025-03-19T142511"><br>该SRAM不涉及时钟<br>其端口定义如下图所示<br><img src="2025-03-19T213741.png" alt="2025-03-19T213741"></p>]]></content>
       
       
+      <categories>
+          
+          <category> uncategorized </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 芯片设计 </tag>
+            
+        </tags>
       
     </entry>
     
@@ -396,6 +435,18 @@
         <content type="html"><![CDATA[<h1 id="Pytorch-DDP实践"><a href="#Pytorch-DDP实践" class="headerlink" title="Pytorch DDP实践"></a>Pytorch DDP实践</h1><p>关于使用多GPU进行分布式训练的详细教程可见<a href="https://zhuanlan.zhihu.com/p/113694038">https://zhuanlan.zhihu.com/p/113694038</a></p><p>实现一个distributed data parallel的重点是管理各个进程之间的通信问题。首先我们需要创建进程组。</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">import os</span><br><span class="line">import sys</span><br><span class="line">import tempfile</span><br><span class="line">import torch</span><br><span class="line">import torch.distributed as dist</span><br><span class="line">import torch.nn as nn</span><br><span class="line">import torch.optim as optim</span><br><span class="line">import torch.multiprocessing as mp</span><br><span class="line"></span><br><span class="line">from torch.nn.parallel import DistributedDataParallel as DDP</span><br><span class="line"></span><br><span class="line"># On Windows platform, the torch.distributed package only</span><br><span class="line"># supports Gloo backend, FileStore and TcpStore.</span><br><span class="line"># For FileStore, set init_method parameter in init_process_group</span><br><span class="line"># to a local file. Example as follow:</span><br><span class="line"># init_method=&quot;file:///f:/libtmp/some_file&quot;</span><br><span class="line"># dist.init_process_group(</span><br><span class="line">#    &quot;gloo&quot;,</span><br><span class="line">#    rank=rank,</span><br><span class="line">#    init_method=init_method,</span><br><span class="line">#    world_size=world_size)</span><br><span class="line"># For TcpStore, same way as on Linux.</span><br><span class="line"></span><br><span class="line">def setup(rank, world_size):</span><br><span class="line">    os.environ[&#x27;MASTER_ADDR&#x27;] = &#x27;localhost&#x27;</span><br><span class="line">    os.environ[&#x27;MASTER_PORT&#x27;] = &#x27;12355&#x27;</span><br><span class="line"></span><br><span class="line">    # initialize the process group</span><br><span class="line">    dist.init_process_group(&quot;gloo&quot;, rank=rank, world_size=world_size)</span><br><span class="line"></span><br><span class="line">def cleanup():</span><br><span class="line">    dist.destroy_process_group()</span><br><span class="line"></span><br></pre></td></tr></table></figure><p>这里的communication backend有四个选项：gloo（facebook），MPI（OpenMPI），NCCL（nvidia）与TCP。他们属于不同的分布式框架。一般GPU训练选择nccl，CPU训练选gloo。</p><h2 id="单机多卡"><a href="#单机多卡" class="headerlink" title="单机多卡"></a>单机多卡</h2><p>首先，检测GPU数目。<br>可以使用<code>torch.cuda.device_count()</code>来打印可用的GPU数目。</p><p><strong>多卡训练要考虑通信开销的，是个trade off的过程，不见得四块卡一定比两块卡快多少，可能是训练到四块卡的时候通信开销已经占了大头。</strong></p><h4 id="怎样将原来的单GPU训练代码改为多卡distributed训练代码？"><a href="#怎样将原来的单GPU训练代码改为多卡distributed训练代码？" class="headerlink" title="怎样将原来的单GPU训练代码改为多卡distributed训练代码？"></a>怎样将原来的单GPU训练代码改为多卡distributed训练代码？</h4><p>模型侧，只需要用DistributedDataParallel包装一下原来的model即可，在backend端它会支持梯度的All-Reduce操作。数据侧，我们nn.utils.data.DistributedSampler来给各个进程切分数据，只需要在dataloader中使用这个sampler就好，值得注意的一点是你要训练循环过程的每个epoch开始时调用train_sampler.set_epoch(epoch)，（主要是为了保证每个epoch的划分是不同的）其它的训练代码都保持不变。</p><h4 id="怎样查看本地ip与通信端口？"><a href="#怎样查看本地ip与通信端口？" class="headerlink" title="怎样查看本地ip与通信端口？"></a>怎样查看本地ip与通信端口？</h4><p>配置分布式任务的第一步，是确保机器之间能够互相正常通信：</p><h2 id="多机多卡"><a href="#多机多卡" class="headerlink" title="多机多卡"></a>多机多卡</h2>]]></content>
       
       
+      <categories>
+          
+          <category> uncategorized </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 算法 </tag>
+            
+        </tags>
       
     </entry>
     
@@ -635,19 +686,6 @@
     
     
     <entry>
-      <title>帝3——美国流程</title>
-      <link href="/2024/07/11/%E5%B8%9D3%E2%80%94%E2%80%94%E7%BE%8E%E5%9B%BD%E6%B5%81%E7%A8%8B/"/>
-      <url>/2024/07/11/%E5%B8%9D3%E2%80%94%E2%80%94%E7%BE%8E%E5%9B%BD%E6%B5%81%E7%A8%8B/</url>
-      
-        <content type="html"><![CDATA[<h1 id="5马高地流"><a href="#5马高地流" class="headerlink" title="5马高地流"></a>5马高地流</h1><p>开局将军修贸易站，一卡发中国移民。10农用<strong>宾夕法尼亚州</strong>上本，中国移民再修一个贸易战，加上技能叫的贸易站，总计三贸易站。二卡发高级酒馆。上本时间约为<strong>两分30秒</strong>。上本期间全员伐木，200木起一个酒馆。</p><p><strong>4分钟</strong>完成上本。<br><strong>殖民时代</strong>: 军事马车起一个马厩，一卡弗吉尼亚大会，起1个教堂。之后发阿肯色州前哨，用三马车造两个酒馆，一个教堂。<strong>教堂研究金流科技</strong>，之后用中国移民再造一个贸易站。此时由于由四贸易站，三酒馆与两个教堂。用400金可以发出10个苏格兰高地兵，同时开始出轻骑兵。<br>三卡发700木，紧接着4卡可以发鲨鱼弓箭手或者原住民条约。</p><p><strong>7分30秒</strong>10高地+5轻骑兵+几个亡命散兵冲家！</p><p>该例程变体为，可以选择不出马，教堂持续出间谍，用于对对面单位进行减速。</p><h1 id="三金流"><a href="#三金流" class="headerlink" title="三金流"></a>三金流</h1><p>开局起房子并且全员打猎，一卡发资本主义。12农宾夕法尼亚州上殖民。上时代期间全员采金，采到300金发荷兰移民，之后起市场，研究猎狗。<br>时代2军事人力车变兵营/马厩，留3农即可保证火枪或者马刷满，刷马的话可以等马厩造好后等20秒。时代2一卡发费城会议，之后立即研究教堂金流科技。</p><p>如果压力不大，下一张发汉密尔顿经济血，买木起第二个教堂。<br>如果需要留殖民，则保持出兵的同时发700木。建造兵营与两个房子，然后发鲨齿弓箭手。</p><p>对付阿兹特克列车，俄罗斯或者墨西哥下加利福尼亚革命，一卡直接700木，然后二卡发鲨鱼弓箭手，这样才能在6分半的时候用15火枪手，5民兵以及12鲨鱼弓箭手守家，否则就很容易寄掉。</p>]]></content>
-      
-      
-      
-    </entry>
-    
-    
-    
-    <entry>
       <title>评测multi-modal task的benchmark</title>
       <link href="/2024/07/11/%E8%AF%84%E6%B5%8Bmulti-modal-task%E7%9A%84benchmark/"/>
       <url>/2024/07/11/%E8%AF%84%E6%B5%8Bmulti-modal-task%E7%9A%84benchmark/</url>
@@ -763,37 +801,11 @@
     
     
     <entry>
-      <title>帝3——墨西哥革命</title>
-      <link href="/2024/06/16/%E5%B8%9D3%E2%80%94%E2%80%94%E5%A2%A8%E8%A5%BF%E5%93%A5%E9%9D%A9%E5%91%BD/"/>
-      <url>/2024/06/16/%E5%B8%9D3%E2%80%94%E2%80%94%E5%A2%A8%E8%A5%BF%E5%93%A5%E9%9D%A9%E5%91%BD/</url>
-      
-        <content type="html"><![CDATA[<h1 id="帝3——墨西哥革命"><a href="#帝3——墨西哥革命" class="headerlink" title="帝3——墨西哥革命"></a>帝3——墨西哥革命</h1><h3 id="下加利福尼亚革命"><a href="#下加利福尼亚革命" class="headerlink" title="下加利福尼亚革命"></a>下加利福尼亚革命</h3><p>开局不造市场也不造贸易站，木头箱只需要捡一个，金币箱不用捡，14农上时代。一卡发公共粮食交易所，大庄园前置。上时代过程中4农伐木，为的是在上本后花250肉与木发克里奥尔人（9个西班牙火枪手）。其余农民全部打猎。城镇中心里把农民点到18个。</p><p><strong>4分15秒</strong>左右升级完成后，军事马车变为酒馆。一卡发克里奥尔人，先去对手家里进行一波骚扰，二卡可以考虑发原住民条约。之后所有农民往前线拉，同时进行<strong>下加利福尼亚革命</strong>。<strong>所有农民变为军事冒险家，同时送三个军事马车</strong>，此时时间在<strong>6分30秒</strong>左右。</p><img src="/2024/06/16/%E5%B8%9D3%E2%80%94%E2%80%94%E5%A2%A8%E8%A5%BF%E5%93%A5%E9%9D%A9%E5%91%BD/2024-06-16-21-36-57.png" class=""><p>两个军事马车修建原住民交易站，之后原住民条约即可生效，送来一批土著兵。上本之后可以发行者帮派补充兵力，或是发600金。</p><h2 id="打法2"><a href="#打法2" class="headerlink" title="打法2"></a>打法2</h2><p>开局起一个贸易站，<strong>2分</strong>左右以10农上时代，一卡发公共粮食交易，大庄园前置。上时代期间，吃够500肉，之后所有农采金。<strong>3分30秒</strong>左右升级完成，军事马车变为酒馆。二本一卡发700木。理想情况下，<strong>4分10秒</strong>开启下加利福尼亚革命。最好三个马车全部变为贸易站。同时用200肉，200木升级贸易路线。</p><p>350肉木金</p><p>补经济的话，可以一卡发工厂，二卡发细流经济，之后酒馆保持出亡命单位，消耗对面。三卡发猎枪，送3个强盗与3个牲畜盗贼，此时大概有18个强盗，3个牲畜盗贼，10名军事冒险家，<strong>7分30秒</strong>打出一拳。</p><h3 id="里奥格兰德革命"><a href="#里奥格兰德革命" class="headerlink" title="里奥格兰德革命"></a>里奥格兰德革命</h3><img src="/2024/06/16/%E5%B8%9D3%E2%80%94%E2%80%94%E5%A2%A8%E8%A5%BF%E5%93%A5%E9%9D%A9%E5%91%BD/2024-06-16-21-44-54.png" class=""><p>一本大庄园前置，二卡发教堂工程。圣路易斯波托西州上三本。大教堂可以使用500金加速上三本时间。</p><h2 id="FF"><a href="#FF" class="headerlink" title="FF"></a>FF</h2><p>塔巴斯科州升级。</p>]]></content>
-      
-      
-      
-    </entry>
-    
-    
-    
-    <entry>
       <title>6月14日雷雨中的午餐</title>
       <link href="/2024/06/14/6%E6%9C%8814%E6%97%A5%E5%A4%A7%E9%9B%A8%E4%B8%AD%E7%9A%84%E5%8D%88%E9%A4%90/"/>
       <url>/2024/06/14/6%E6%9C%8814%E6%97%A5%E5%A4%A7%E9%9B%A8%E4%B8%AD%E7%9A%84%E5%8D%88%E9%A4%90/</url>
       
         <content type="html"><![CDATA[<h1 id="6月14日雷雨中的午餐"><a href="#6月14日雷雨中的午餐" class="headerlink" title="6月14日雷雨中的午餐"></a>6月14日雷雨中的午餐</h1><h4 id="（本故事采样于真实的交谈，部分文字由ChatGPT补充）"><a href="#（本故事采样于真实的交谈，部分文字由ChatGPT补充）" class="headerlink" title="（本故事采样于真实的交谈，部分文字由ChatGPT补充）"></a>（本故事采样于真实的交谈，部分文字由ChatGPT补充）</h4><p>夏初的中午，空气仿佛被水汽泡胀得沉重。又是台风天，窗外雷声滚滚，雨水泼天而下，像是上天在清洗整个校园。电子系的实验室窗玻璃上挂满了雨珠，屋内却闷热不堪，唯一的风来自角落那台呼哧呼哧喘着气的落地扇。</p><p>几位博士生聚在休息室，勉强挤出一点空间，各自拆着外卖盒。又是乌鸡米线，空气中弥漫着香辣酱、卤蛋、咖啡混杂的味道，像一锅由高压生活炖出来的青春。</p><p>Nomad坐在角落，夹着凉掉的煎蛋，突然说：</p><p>“老莫，读博做FPGA加速方向能不能搞呢？”</p><p>话音刚落，实验室一瞬陷入短暂的沉默，只剩下外头雷雨声灌进屋子里。</p><p>坐在靠窗一侧的老莫抬起头来，他没吃饭，只是握着一杯兑了冰块的黑咖啡，像往常一样一脸疲惫，眼神却清醒。他盯了Nomad一眼，叹了口气，说：</p><p>“现在读博士还搞这个？建议换导师，或者早点跑路。”</p><p>众人笑了，笑声中带着些调侃、些许认同，还有些说不清道不明的心照不宣。</p><p>Nomad并不恼，眨了眨眼，说：“支持啊，我是认真的。不仅是FPGA，整个数字IC这一套，关键点其实在软件不在硬件。核心是——能不能找到别人没开发过的坑，咱自己填一下。”</p><p>老莫抿了一口咖啡，眼角带笑，声音懒洋洋地丢过来一句：“基本上可以鉴定为是江湖庸医的水准。”</p><p>另一个博士生在拆茶叶蛋，笑着接话：“不过他这话也没错呀，像现在AI加速、边缘计算这些，很多时候硬件不是问题，问题是能不能让它跑得起来，跑得快。”</p><p>Nomad点头，像是找到了支持：“我一直觉得，FPGA开发者社区应该也能形成自己的GitHub和Paper with Code，就像搞深度学习的那帮人一样。”</p><p>有人咕哝着：“那是烧钱堆出来的……”</p><p>但Nomad声音没停：“我们真正要实现的，是创造一个社群。只要开发者数量足够多，自然就会出现代码共享的平台，自然就会有人做debug服务，自然也会出现各种供人即插即用的IP。”</p><p>实验室一瞬间安静了，老莫终于开口，半讥讽半认真：“但这不是Xilinx和Intel他们公司该考虑的事吗？你一个博士生搞社群？”</p><p>Nomad摇头，神情罕见地认真：“不不，这是每一个FPGA开发者共同的愿景。Github也不是哪个公司开发的，但它确实推动了整个软件行业。我们也可以，只要……我们愿意试。”</p><p>屋外雷声再次炸响，玻璃窗轻轻抖了一下。老莫靠着椅背，望着窗外模糊一片的雨幕，沉默了几秒，然后笑了一声。</p><p>“你愿意试，那你就去做。”他说，“别等别人造船，有时候你得自己撑起一块木板，就算只是让别人知道这片海能漂。”</p><p>他低头，打开笔记本，翻出那个已经一年没动的私有仓库，敲下一行字：</p><blockquote><p>“FPGA开源社群计划 v0.1，夏初启动，雷雨为证。”</p></blockquote><p>Nomad笑了，伸手去碰老莫的屏幕，敲下一句：</p><blockquote><p>“等晴了，我们搞个README。”</p></blockquote>]]></content>
-      
-      
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title>帝3——英国与法国打法</title>
-      <link href="/2024/06/14/%E5%B8%9D3%E2%80%94%E2%80%94%E6%B3%95%E5%9B%BD%E6%89%93%E6%B3%95/"/>
-      <url>/2024/06/14/%E5%B8%9D3%E2%80%94%E2%80%94%E6%B3%95%E5%9B%BD%E6%89%93%E6%B3%95/</url>
-      
-        <content type="html"><![CDATA[<h1 id="帝3——法国打法"><a href="#帝3——法国打法" class="headerlink" title="帝3——法国打法"></a>帝3——法国打法</h1><h3 id="土著流"><a href="#土著流" class="headerlink" title="土著流"></a>土著流</h3><p>14农三分钟之前开始升本。升本期间9农伐木，其余吃肉。<strong>4分30秒完成升本</strong>。一卡700木，二卡原住民条约。起一个贸易战，一个兵营。此时对面可能会来压原住民交易站。</p><h1 id="英国打法"><a href="#英国打法" class="headerlink" title="英国打法"></a>英国打法</h1><h3 id="格林尼治时间FI"><a href="#格林尼治时间FI" class="headerlink" title="格林尼治时间FI"></a>格林尼治时间FI</h3><p>英国开局拥有300木，起一个TP后，用两农伐木，或者打木宝攒够140木，起一个房子。<strong>一卡格林尼治时间</strong>。<strong>3分钟左右</strong>以14农塔金上本。此时因为有2TP。理想情况下<strong>4分钟左右</strong>即可完成上本。</p><p>上本后一卡700金，二卡700木。<strong>5分40秒</strong>7豪德战斧兵上三本。同时三卡发出<strong>光荣革命</strong>。700木用于起4个房子与一个教堂。同样，在<strong>7分钟之前</strong>，可以成功上三本。上本期间<strong>所有农吃肉</strong>。</p><p>三本后一卡发2炮，攒够1000肉后出苏格兰黑卫士军团。此时应在<strong>8分半左右</strong>，以8黑卫士7战斧兵和二炮挡住对手的进攻，或是压对面的家。<br>二卡发1000金，准备升级工业时代。工业时代选择可以2鹰炮升级。</p><p><strong>12分左右</strong>，工业时代后，一卡可选择发3火箭或者<strong>长矛绅士</strong>。</p><p>该流程时代3因为缺经济，很容易站不稳。</p><h3 id="两房经济型殖民rush"><a href="#两房经济型殖民rush" class="headerlink" title="两房经济型殖民rush"></a>两房经济型殖民rush</h3><p>卡组：<br><img src="/2024/06/14/%E5%B8%9D3%E2%80%94%E2%80%94%E6%B3%95%E5%9B%BD%E6%89%93%E6%B3%95/2024-09-02-09-30-06.png" class=""></p><p>木箱收到280木时，正好可以起两个房子，此时停止收木箱。一卡发三农，17农时塔金上本，时间约为<strong>2分40秒</strong>左右。</p><p>上本期间12农伐木，其余农民赶肉或起房子。二本之前，起4个房子，并保证有200木用于起一个前置兵营。</p><p>二本后，<strong>一卡700木</strong>。12农打猎，其余农伐木，如果对方是兵营开，则持续出长弓兵，否则就出火枪兵。多余的木头用于起房子。<strong>5分钟左右发二卡600木</strong>，起市场并研究一级二级打猎科技。三卡可视情况发兵卡或4农卡。</p><p><strong>7分20秒</strong>，英国应有33农与120的人口。此时可以研究市场一级伐木科技并起一个马厩。之后开始长矛兵长弓兵与骑兵配合压制。</p>]]></content>
       
       
       
@@ -869,31 +881,6 @@
         <tags>
             
             <tag> 数字加速器 </tag>
-            
-        </tags>
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title>帝3——意大利阿根廷革命流</title>
-      <link href="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/"/>
-      <url>/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/</url>
-      
-        <content type="html"><![CDATA[<h1 id="帝3——意大利阿根廷革命流"><a href="#帝3——意大利阿根廷革命流" class="headerlink" title="帝3——意大利阿根廷革命流"></a>帝3——意大利阿根廷革命流</h1><p>视频教学参考：<a href="https://www.bilibili.com/video/BV15w4m1i7t4/">https://www.bilibili.com/video/BV15w4m1i7t4/</a></p><p>卡组参考：<br>小海龟oo的边境防御工事<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-18-45-47.png" class=""></p><h3 id="探索时代："><a href="#探索时代：" class="headerlink" title="探索时代："></a>探索时代：</h3><p>开局用建筑师起市场，攒够木头之后加速建造。紧接着建筑师起一个房子。市场第一个科技研究大衣，之后市场卖食物研究猎犬，农民攻击力，并准备资源研究2级打猎。房子起好后建筑师去起TP。</p><p>一卡发资本主义，紧接着研究一级伐木。<strong>17农升二本</strong>，理想情况下<strong>3分10秒</strong>点下升级按钮。升级选<strong>塔金</strong>（总督）。</p><p>升级期间9农伐木，4农采金，其余赶肉。尽快用木头加速TP的建造，紧接着建筑师回家起一个房子与伦巴第。金子采够后造一个建筑师，采够75木升级一级采金后，7农采金，其余吃肉。</p><h3 id="商业时代："><a href="#商业时代：" class="headerlink" title="商业时代："></a>商业时代：</h3><h4 id="小海龟卡组"><a href="#小海龟卡组" class="headerlink" title="小海龟卡组"></a>小海龟卡组</h4><p><strong>4分50秒</strong>左右上本完成，塔放家里，上本后第一时间发700金，并准备造第三个建筑师。所有建筑师一起敲伦巴第。<br><strong>6分钟</strong>之前升级三本，选择<strong>篷车升级</strong>（主教），此时大概有19农。<br>升本期间，建筑师敲第二个伦巴第。</p><h4 id="乐于卡组"><a href="#乐于卡组" class="headerlink" title="乐于卡组"></a>乐于卡组</h4><h3 id="要塞时代："><a href="#要塞时代：" class="headerlink" title="要塞时代："></a>要塞时代：</h3><p><strong>6分50秒</strong>左右上本完成，并且两个伦巴第也建造完成，建筑师开始敲第三个城镇中心（或者敲大教堂）。三本<strong>第一卡发4塔</strong>。第二卡发<strong>卢卡金融家（1200木）</strong>，伦巴第投资剩余的木头。所有农民去吃肉。建筑师修完城镇中心后，再起三个伦巴第。第三卡发 <strong>热那亚金融家 (1200金)</strong>。<strong>10分50秒左右升级工业</strong>，选择<strong>宗座瑞士近卫队</strong>。</p><p>升级期间，建筑师起大教堂，出一轮<strong>教宗骑士</strong>，并升级教堂科技。</p><h3 id="工业时代："><a href="#工业时代：" class="headerlink" title="工业时代："></a>工业时代：</h3><p>发两鹰炮两长炮，先守住第一波攻势。兵营保持出神射手，别让伦巴第全被推了！小海龟这一把瑞典直接推了五门炮过来，依靠10神射手+3教宗骑士+升级送的宗座瑞士近卫队+发的两鹰炮两长炮+民兵才守住。但损失惨重，伦巴第被拆了个干净，里面的资源全没了。教训是：应该至少把一个伦巴第后置，总之这一波一定要守住！<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-19-16-57.png" class=""></p><p><strong>FI打法：</strong><br>发工厂。之后发<strong>佛罗伦萨金融家 （2300金）</strong>，再出一轮教宗骑士。兵营保持出神射手。第三卡发<strong>教宗火炮</strong>，然后进入暴兵状态。</p><p><strong>阿根廷革命</strong><br>直接发<strong>佛罗伦萨金融家 （2300金）</strong>，同时攒革命的资源，卡发到后立即阿根廷革命。时间大概在<strong>14分50秒左右</strong>。另外提前造两个牲畜栏，并升级法外之徒。阿根廷送10个高乔人。<br>一卡直接发近卫掷弹骑兵，然后准备1200金发圣马丁（13近卫掷弹骑兵+10军团龙骑兵+1英雄圣马丁），之后再接阿根廷迫击炮。<br>经济可以通过发无限8牛来补食物，并通过伦巴第投资食物来补充木头和黄金。</p><p>高乔人数据<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-21-27-17.png" class=""></p><p>高乔人可以训练牛<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-21-28-19.png" class=""></p><p>近卫掷弹骑兵<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-21-33-38.png" class=""></p><p>兵工厂研究燃烧弹后可以拥有更大的爆炸半径。</p>]]></content>
-      
-      
-      <categories>
-          
-          <category> 游戏 </category>
-          
-      </categories>
-      
-      
-        <tags>
-            
-            <tag> 帝国时代 </tag>
             
         </tags>
       
