@@ -4,6 +4,45 @@
   
     
     <entry>
+      <title>Twin-8T CIM Macro</title>
+      <link href="/2025/08/15/Twin-8T-CIM-Macro/"/>
+      <url>/2025/08/15/Twin-8T-CIM-Macro/</url>
+      
+        <content type="html"><![CDATA[<h1 id="Twin-8T-CIM-Macro"><a href="#Twin-8T-CIM-Macro" class="headerlink" title="Twin-8T CIM Macro"></a>Twin-8T CIM Macro</h1><p>文章名：A Twin-8T SRAM Computation-in-Memory Unit-Macro for Multibit CNN-Based AI Edge Processors</p><p>这篇文章设计了一个基于电流的CIM Macro。提出了Twin-8T架构支持多比特输入(1，2，4)位。这些多bit的输入会被DAC转化为WL上不同的电平：VDDWL。而不同的VDDWL电平会在BL与BLB上产生不同的电流，这种架构面临的挑战是：当bit-level过多之后，bltline上的signal margin会降低。</p><p><img src="2025-08-15T105626.png" alt="2025-08-15T105626"></p><p>上图(a)是一个典型的基于电流的CIM架构，在预充电阶段，BL会被充电到一个固定的电压，每个SRAM cell输出的电流分成多个权重位。多个权重位的累加可能导致单个cell的贡献信号更小，当更多的电流组合存在之后，相邻结果之间的差距（$ \Delta LSB $）就会变小。另外，bitline上的电压必须高于一个write-margin (WM)的电压值，以防止过低的BL电压改写cell中已经存好的值(write disturb)</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>关于FP-INT mixed神经网络加速器设计的work</title>
+      <link href="/2025/08/06/%E5%85%B3%E4%BA%8EFP-INT-mixed%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C%E5%8A%A0%E9%80%9F%E5%99%A8%E8%AE%BE%E8%AE%A1%E7%9A%84work/"/>
+      <url>/2025/08/06/%E5%85%B3%E4%BA%8EFP-INT-mixed%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C%E5%8A%A0%E9%80%9F%E5%99%A8%E8%AE%BE%E8%AE%A1%E7%9A%84work/</url>
+      
+        <content type="html"><![CDATA[<h1 id="关于FP-INT-mixed神经网络加速器设计的work"><a href="#关于FP-INT-mixed神经网络加速器设计的work" class="headerlink" title="关于FP-INT mixed神经网络加速器设计的work"></a>关于FP-INT mixed神经网络加速器设计的work</h1><p>[清华大学 ISSCC2025]<br>An 88.36TOPS/W Bit-Level-Weight-Compressed  Large-Language-Model Accelerator with Cluster-Aligned<br>INT-FP-GEMM and Bi-Dimensional Workflow Reformulation</p><p>该工作对Transformer神经网络的activation采用了BF16量化，weight采用INT8量化。</p><p>因为BF16量化后的activation他们的exponent位存在很高的相似性。所以该work将每32个activation和它们对应的weight分为4个cluster。每个cluster中activation的exponent相差不超过3。之后每个cluster中的activation和weight单独做INT的乘法。对齐操作由对weight进行zero-extension完成，而不是对activation进行左移。而由于weight用了特殊的coding进行处理，zero extension带来的额外功耗很小。</p><p>[东南大学 ISSCC2025] A 28nm 17.83-to-62.84TFLOPS/W Broadcast-Alignment Floating-Point CIM Macro with Non-Two’s-Complement MAC for CNNs and Transformers </p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>开关电容的charge injection与clock feedthrough</title>
+      <link href="/2025/08/06/%E5%BC%80%E5%85%B3%E7%94%B5%E5%AE%B9%E7%9A%84charge-injection%E4%B8%8Eclock-feedthrough/"/>
+      <url>/2025/08/06/%E5%BC%80%E5%85%B3%E7%94%B5%E5%AE%B9%E7%9A%84charge-injection%E4%B8%8Eclock-feedthrough/</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>AMS仿真流程</title>
       <link href="/2025/07/09/AMS%E4%BB%BF%E7%9C%9F%E6%B5%81%E7%A8%8B/"/>
       <url>/2025/07/09/AMS%E4%BB%BF%E7%9C%9F%E6%B5%81%E7%A8%8B/</url>
@@ -1099,19 +1138,8 @@
     
     <entry>
       <title></title>
-      <link href="/css/custom.css"/>
-      <url>/css/custom.css</url>
-      
-        <content type="html"><![CDATA[/* 鼠标样式 */#cursor {    position: fixed;    width: 16px;    height: 16px;    /* 这里改变跟随的底色 */    background: var(--theme-color);    border-radius: 8px;    opacity: 0.25;    z-index: 10086;    pointer-events: none;    transition: 0.2s ease-in-out;    transition-property: background, opacity, transform;  }    #cursor.hidden {    opacity: 0;  }    #cursor.hover {    opacity: 0.1;    transform: scale(2.5);    -webkit-transform: scale(2.5);    -moz-transform: scale(2.5);    -ms-transform: scale(2.5);    -o-transform: scale(2.5);  }    #cursor.active {    opacity: 0.5;    transform: scale(0.5);    -webkit-transform: scale(0.5);    -moz-transform: scale(0.5);    -ms-transform: scale(0.5);    -o-transform: scale(0.5);  }]]></content>
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title>categories</title>
-      <link href="/categories/index.html"/>
-      <url>/categories/index.html</url>
+      <link href="/about/index.html"/>
+      <url>/about/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
       
@@ -1123,28 +1151,6 @@
       <title></title>
       <link href="/link/index.html"/>
       <url>/link/index.html</url>
-      
-        <content type="html"><![CDATA[]]></content>
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title></title>
-      <link href="/js/cursor.js"/>
-      <url>/js/cursor.js</url>
-      
-        <content type="html"><![CDATA[var CURSOR;Math.lerp = (a, b, n) => (1 - n) * a + n * b;const getStyle = (el, attr) => {    try {        return window.getComputedStyle            ? window.getComputedStyle(el)[attr]            : el.currentStyle[attr];    } catch (e) {}    return "";};class Cursor {    constructor() {        this.pos = {curr: null, prev: null};        this.pt = [];        this.create();        this.init();        this.render();    }    move(left, top) {        this.cursor.style["left"] = `${left}px`;        this.cursor.style["top"] = `${top}px`;    }    create() {        if (!this.cursor) {            this.cursor = document.createElement("div");            this.cursor.id = "cursor";            this.cursor.classList.add("hidden");            document.body.append(this.cursor);        }        var el = document.getElementsByTagName('*');        for (let i = 0; i < el.length; i++)            if (getStyle(el[i], "cursor") == "pointer")                this.pt.push(el[i].outerHTML);        document.body.appendChild((this.scr = document.createElement("style")));        // 这里改变鼠标指针的颜色 由svg生成        this.scr.innerHTML = `* {cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' width='8px' height='8px'><circle cx='4' cy='4' r='4' opacity='.5'/></svg>") 4 4, auto}`;    }    refresh() {        this.scr.remove();        this.cursor.classList.remove("hover");        this.cursor.classList.remove("active");        this.pos = {curr: null, prev: null};        this.pt = [];        this.create();        this.init();        this.render();    }    init() {        document.onmouseover  = e => this.pt.includes(e.target.outerHTML) && this.cursor.classList.add("hover");        document.onmouseout   = e => this.pt.includes(e.target.outerHTML) && this.cursor.classList.remove("hover");        document.onmousemove  = e => {(this.pos.curr == null) && this.move(e.clientX - 8, e.clientY - 8); this.pos.curr = {x: e.clientX - 8, y: e.clientY - 8}; this.cursor.classList.remove("hidden");};        document.onmouseenter = e => this.cursor.classList.remove("hidden");        document.onmouseleave = e => this.cursor.classList.add("hidden");        document.onmousedown  = e => this.cursor.classList.add("active");        document.onmouseup    = e => this.cursor.classList.remove("active");    }    render() {        if (this.pos.prev) {            this.pos.prev.x = Math.lerp(this.pos.prev.x, this.pos.curr.x, 0.15);            this.pos.prev.y = Math.lerp(this.pos.prev.y, this.pos.curr.y, 0.15);            this.move(this.pos.prev.x, this.pos.prev.y);        } else {            this.pos.prev = this.pos.curr;        }        requestAnimationFrame(() => this.render());    }}(() => {    CURSOR = new Cursor();    // 需要重新获取列表时，使用 CURSOR.refresh()})();]]></content>
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title></title>
-      <link href="/about/index.html"/>
-      <url>/about/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
       
@@ -1169,6 +1175,39 @@
       <url>/music/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>categories</title>
+      <link href="/categories/index.html"/>
+      <url>/categories/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/css/custom.css"/>
+      <url>/css/custom.css</url>
+      
+        <content type="html"><![CDATA[/* 鼠标样式 */#cursor {    position: fixed;    width: 16px;    height: 16px;    /* 这里改变跟随的底色 */    background: var(--theme-color);    border-radius: 8px;    opacity: 0.25;    z-index: 10086;    pointer-events: none;    transition: 0.2s ease-in-out;    transition-property: background, opacity, transform;  }    #cursor.hidden {    opacity: 0;  }    #cursor.hover {    opacity: 0.1;    transform: scale(2.5);    -webkit-transform: scale(2.5);    -moz-transform: scale(2.5);    -ms-transform: scale(2.5);    -o-transform: scale(2.5);  }    #cursor.active {    opacity: 0.5;    transform: scale(0.5);    -webkit-transform: scale(0.5);    -moz-transform: scale(0.5);    -ms-transform: scale(0.5);    -o-transform: scale(0.5);  }]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/js/cursor.js"/>
+      <url>/js/cursor.js</url>
+      
+        <content type="html"><![CDATA[var CURSOR;Math.lerp = (a, b, n) => (1 - n) * a + n * b;const getStyle = (el, attr) => {    try {        return window.getComputedStyle            ? window.getComputedStyle(el)[attr]            : el.currentStyle[attr];    } catch (e) {}    return "";};class Cursor {    constructor() {        this.pos = {curr: null, prev: null};        this.pt = [];        this.create();        this.init();        this.render();    }    move(left, top) {        this.cursor.style["left"] = `${left}px`;        this.cursor.style["top"] = `${top}px`;    }    create() {        if (!this.cursor) {            this.cursor = document.createElement("div");            this.cursor.id = "cursor";            this.cursor.classList.add("hidden");            document.body.append(this.cursor);        }        var el = document.getElementsByTagName('*');        for (let i = 0; i < el.length; i++)            if (getStyle(el[i], "cursor") == "pointer")                this.pt.push(el[i].outerHTML);        document.body.appendChild((this.scr = document.createElement("style")));        // 这里改变鼠标指针的颜色 由svg生成        this.scr.innerHTML = `* {cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' width='8px' height='8px'><circle cx='4' cy='4' r='4' opacity='.5'/></svg>") 4 4, auto}`;    }    refresh() {        this.scr.remove();        this.cursor.classList.remove("hover");        this.cursor.classList.remove("active");        this.pos = {curr: null, prev: null};        this.pt = [];        this.create();        this.init();        this.render();    }    init() {        document.onmouseover  = e => this.pt.includes(e.target.outerHTML) && this.cursor.classList.add("hover");        document.onmouseout   = e => this.pt.includes(e.target.outerHTML) && this.cursor.classList.remove("hover");        document.onmousemove  = e => {(this.pos.curr == null) && this.move(e.clientX - 8, e.clientY - 8); this.pos.curr = {x: e.clientX - 8, y: e.clientY - 8}; this.cursor.classList.remove("hidden");};        document.onmouseenter = e => this.cursor.classList.remove("hidden");        document.onmouseleave = e => this.cursor.classList.add("hidden");        document.onmousedown  = e => this.cursor.classList.add("active");        document.onmouseup    = e => this.cursor.classList.remove("active");    }    render() {        if (this.pos.prev) {            this.pos.prev.x = Math.lerp(this.pos.prev.x, this.pos.curr.x, 0.15);            this.pos.prev.y = Math.lerp(this.pos.prev.y, this.pos.curr.y, 0.15);            this.move(this.pos.prev.x, this.pos.prev.y);        } else {            this.pos.prev = this.pos.curr;        }        requestAnimationFrame(() => this.render());    }}(() => {    CURSOR = new Cursor();    // 需要重新获取列表时，使用 CURSOR.refresh()})();]]></content>
       
     </entry>
     
