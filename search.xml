@@ -1161,6 +1161,39 @@
     
     
     <entry>
+      <title></title>
+      <link href="/link/index.html"/>
+      <url>/link/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/movies/index.html"/>
+      <url>/movies/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/music/index.html"/>
+      <url>/music/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>categories</title>
       <link href="/categories/index.html"/>
       <url>/categories/index.html</url>
@@ -1177,28 +1210,6 @@
       <url>/css/custom.css</url>
       
         <content type="html"><![CDATA[/* 鼠标样式 */#cursor {    position: fixed;    width: 16px;    height: 16px;    /* 这里改变跟随的底色 */    background: var(--theme-color);    border-radius: 8px;    opacity: 0.25;    z-index: 10086;    pointer-events: none;    transition: 0.2s ease-in-out;    transition-property: background, opacity, transform;  }    #cursor.hidden {    opacity: 0;  }    #cursor.hover {    opacity: 0.1;    transform: scale(2.5);    -webkit-transform: scale(2.5);    -moz-transform: scale(2.5);    -ms-transform: scale(2.5);    -o-transform: scale(2.5);  }    #cursor.active {    opacity: 0.5;    transform: scale(0.5);    -webkit-transform: scale(0.5);    -moz-transform: scale(0.5);    -ms-transform: scale(0.5);    -o-transform: scale(0.5);  }]]></content>
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title></title>
-      <link href="/link/index.html"/>
-      <url>/link/index.html</url>
-      
-        <content type="html"><![CDATA[]]></content>
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title></title>
-      <link href="/music/index.html"/>
-      <url>/music/index.html</url>
-      
-        <content type="html"><![CDATA[]]></content>
       
     </entry>
     
@@ -1228,10 +1239,10 @@
     
     <entry>
       <title></title>
-      <link href="/movies/index.html"/>
-      <url>/movies/index.html</url>
+      <link href="/js/music.js"/>
+      <url>/js/music.js</url>
       
-        <content type="html"><![CDATA[]]></content>
+        <content type="html"><![CDATA[(function() {  // 防止重复触发  let played = false;  function tryPlay() {    if (played) return;    if (typeof window.APlayer === 'undefined') {      return setTimeout(tryPlay, 100);    }    const ap = new APlayer({      container: document.getElementById('aplayer'),      fixed: true,      mini: true,      autoplay: false,   // 先别播      audio: [{        name: 'Windy Hill',        artist: '羽肿',        url:  '/music/song1.mp3'      }]    });    function onScroll() {      if (window.scrollY >= 60) {   // 往下滑 60 px 再播        window.removeEventListener('scroll', onScroll, { passive: true });        played = true;        ap.play();                  // 真正开始播放      }    }    window.addEventListener('scroll', onScroll, { passive: true });  }  // 等 DOM 就绪  if (document.readyState === 'loading') {    document.addEventListener('DOMContentLoaded', tryPlay);  } else {    tryPlay();  }})();]]></content>
       
     </entry>
     
