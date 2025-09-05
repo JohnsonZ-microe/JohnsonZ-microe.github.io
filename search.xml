@@ -4,27 +4,13 @@
   
     
     <entry>
-      <title>hello world</title>
-      <link href="/2025/08/16/hello-world/"/>
-      <url>/2025/08/16/hello-world/</url>
+      <title>ViT模型片外访存分析</title>
+      <link href="/2025/09/02/ViT%E6%A8%A1%E5%9E%8B%E7%89%87%E5%A4%96%E8%AE%BF%E5%AD%98%E5%88%86%E6%9E%90/"/>
+      <url>/2025/09/02/ViT%E6%A8%A1%E5%9E%8B%E7%89%87%E5%A4%96%E8%AE%BF%E5%AD%98%E5%88%86%E6%9E%90/</url>
       
-        <content type="html"><![CDATA[<p><img src="images.jpg" alt="图片"></p>]]></content>
-      
-      
-      <categories>
-          
-          <category> test </category>
-          
-      </categories>
+        <content type="html"><![CDATA[<h1 id="ViT模型片外访存分析"><a href="#ViT模型片外访存分析" class="headerlink" title="ViT模型片外访存分析"></a>ViT模型片外访存分析</h1><p>对于ViT-tiny模型，其embedding大小为192。输入的patch_size为16，对于一张(256, 256)的图片而言，其总共包含1025个token(算上CLS token之后)。</p><p>考虑一个边缘端芯片，其总共的memory size一般&lt;1Mb。若input_activation的memory与weight memory都为512Kb，且IA量化为8bit，weight量化为4bit的情况下。统计两个memory各自的访存。</p><h2 id="ViT-tiny-backbone-layer"><a href="#ViT-tiny-backbone-layer" class="headerlink" title="ViT-tiny backbone layer"></a>ViT-tiny backbone layer</h2><h4 id="计算-Q-K-V"><a href="#计算-Q-K-V" class="headerlink" title="计算$Q,K,V$"></a>计算$Q,K,V$</h4><p>将input feature map以170个token为1组放到片上，此时weight memory可以存下所有的QKV矩阵。生成的Q, K, V立即发出片外。总共的offchip access为 $ 170 \times 192 \times 8 \times 4 \times 6 = 11.95 Mb $，其中8为input activation (IA)的quantization bits, 4为load input feature map, offload Q, K, V这四次offchip access。6是1025个token可被分为6组。</p><h4 id="计算-QK-T"><a href="#计算-QK-T" class="headerlink" title="计算$QK^T$"></a>计算$QK^T$</h4><p>将n个Q与K token存入input SRAM，经过计算得到大小为$n^2$的矩阵，解方程 $ ( 2 \times 192 n  + n^2 ) \times 4 = 512 \times 1024 $, 解得 $ n=128 $，故input SRAM EMA为$ (128 \times 192 \times 8 + 1025 \times 192 \times 8 + 1025 \times 128 \times 8) \times 8 = 21.52 Mb$, 其中括号外的8意为1025个token分为8组。</p><h4 id="计算-PV-T"><a href="#计算-PV-T" class="headerlink" title="计算$PV^T$"></a>计算$PV^T$</h4><p>将n个P与V token存入input SRAM，经过计算得到大小为$n \times 192 $的矩阵，解方程 $ ( 2 \times  192 n\times + n^2 ) \times 4 = 512 \times 1024 $, 同样 $ n=128 $，故input SRAM EMA为$ (128 \times 128 \times 8 + 1025 \times 192 \times 8 \times 2) \times 8 = 25.02 Mb$</p><h4 id="计算-FCo"><a href="#计算-FCo" class="headerlink" title="计算$FCo$"></a>计算$FCo$</h4><p>将input feature map以113个token为1组放到片上。生成的Output Feature map与上一个layer的output feature map做short cut后立即发出片外。总共的offchip access为 $ 113 \times 192 \times 8 \times 3 \times 10 = 4.96 Mb $，其中3为load input feature map, output feature map与short cut feature map这三次offchip access。</p><h4 id="计算-FC1"><a href="#计算-FC1" class="headerlink" title="计算$FC1$"></a>计算$FC1$</h4><p>将input feature map以68个token为1组放到片上。生成的Output Feature map大小为[68, 768]。 由于weight matrix大小为[192, 768]，以4bit量化为例，存下所有的weight matrix需要576Kb的片上memory。考虑用一些压缩技术使片上memory可以存下整个weight matrix，则总共的offchip access为 $ 68 \times 192 \times 8 \times 5 \times 16 = 7.97 Mb $，其中5为input feature map与其4倍大的output feature map的offchip access。</p><h4 id="计算-FC2"><a href="#计算-FC2" class="headerlink" title="计算$FC2$"></a>计算$FC2$</h4><p>将大小为[48, 768]的input feature map以48个token为1组放到片上。生成的Output Feature map大小为[48, 192]。总共的offchip access为 $ 48 \times 192 \times 8 \times 21 \times 7 = 10.34 Mb $</p><p>将以上的EMA加总，得出计算一层ViT-tiny backbone layer input SRAM的EMA为54.27Mb。相比之下，在每一次inference weight只加载一次的情况下，weight EMA为$192  \times 192 \times 3 + 192 \times 192 + 192  \times 192 \times 4 \times 2 = 5.06 Mb $<br>可见由于ViT input token length较大，带来了很多input feature map反复读取的开销。<br>取典型的加速器throughput为200GOPS，整个backbone layer的MAC数约为1.526 GOP，则不考虑EMA的情况下，计算一个backbone layer的latency约为7.63ms。<br>取10pJ/bit为片外access 能耗，若要在10ms的区间内搬运54.27Mbit，平均比特率约为5.43Gbs，计算得功耗约为54.27mW。</p><h2 id="ViT-tiny-backbone-layer-w-Sparse-lowrank-decomposition"><a href="#ViT-tiny-backbone-layer-w-Sparse-lowrank-decomposition" class="headerlink" title="ViT-tiny backbone layer w/ Sparse+lowrank decomposition"></a>ViT-tiny backbone layer w/ Sparse+lowrank decomposition</h2>]]></content>
       
       
-        <tags>
-            
-            <tag> tag1 </tag>
-            
-            <tag> tag2 </tag>
-            
-        </tags>
       
     </entry>
     
@@ -35,7 +21,7 @@
       <link href="/2025/08/15/Twin-8T-CIM-Macro/"/>
       <url>/2025/08/15/Twin-8T-CIM-Macro/</url>
       
-        <content type="html"><![CDATA[<h1 id="Twin-8T-CIM-Macro"><a href="#Twin-8T-CIM-Macro" class="headerlink" title="Twin-8T CIM Macro"></a>Twin-8T CIM Macro</h1><p>文章名：A Twin-8T SRAM Computation-in-Memory Unit-Macro for Multibit CNN-Based AI Edge Processors</p><p>这篇文章设计了一个基于电流的CIM Macro。提出了Twin-8T架构支持多比特输入(1，2，4)位。这些多bit的输入会被DAC转化为WL上不同的电平：VDDWL。而不同的VDDWL电平会在BL与BLB上产生不同的电流，这种架构面临的挑战是：当bit-level过多之后，bltline上的signal margin会降低。</p><p><img src="2025-08-15T105626.png" alt="2025-08-15T105626"></p><p>上图(a)是一个典型的基于电流的CIM架构，在预充电阶段，BL会被充电到一个固定的电压，每个SRAM cell输出的电流分成多个权重位。多个权重位的累加可能导致单个cell的贡献信号更小，当更多的电流组合存在之后，相邻结果之间的差距（$ \Delta LSB $）就会变小。另外，bitline上的电压必须高于一个write-margin (WM)的电压值，以防止过低的BL电压改写cell中已经存好的值(write disturb)</p>]]></content>
+        <content type="html"><![CDATA[<h1 id="Twin-8T-CIM-Macro"><a href="#Twin-8T-CIM-Macro" class="headerlink" title="Twin-8T CIM Macro"></a>Twin-8T CIM Macro</h1><p>文章名：A Twin-8T SRAM Computation-in-Memory Unit-Macro for Multibit CNN-Based AI Edge Processors</p><p>这篇文章设计了一个基于电流的CIM Macro。提出了Twin-8T架构支持多比特输入(1，2，4)位。这些多bit的输入会被DAC转化为WL上不同的电平：VDDWL。而不同的VDDWL电平会在BL与BLB上产生不同的电流，这种架构面临的挑战是：当bit-level过多之后，bltline上的signal margin会降低。</p><p><img src="2025-08-15T105626.png" alt="2025-08-15T105626"></p><p>上图(a)是一个典型的基于电流的CIM架构，在预充电阶段，BL会被充电到一个固定的电压，每个SRAM cell输出的电流分成多个权重位。多个权重位的累加可能导致单个cell的贡献信号更小，当更多的电流组合存在之后，相邻结果之间的差距（$ \Delta LSB $）就会变小。另外，bitline上的电压必须高于一个write-margin (WM) 的电压值，以防止过低的BL电压改写cell中已经存好的值 (write disturb)。</p><p><img src="2025-08-15T112035.png" alt="2025-08-15T112035"><br>这个cell的创新点在于：把两个8T SRAM的RBL共享。左边的M8T的读出管宽度是右边L8T的两倍。这样左边8T cell对RBL的电流贡献就会是右边cell的两倍。当配置为2-bit-input乘以2-bit-weight的计算时，RWL上的电压将会有四种台阶。</p><p><img src="2025-08-15T115636.png" alt="2025-08-15T115636"><br>RBL分享节省出来的layout空间，该work将奇数行和偶数行的cell分为两组，一组挂在RBLE上，一组挂在RBLO上，用这种方式降低BL的parasitic load并提高signal margin。<br><img src="2025-08-15T162420.png" alt="2025-08-15T162420"></p><p>对于读出电路，传统的ADC设计使用了固定的reference voltage，不支持可调性。而在这个设计里，ADC的reference用一个Local Reference Generator来根据不同的mode调整reference voltage。</p><p><img src="2025-08-15T164045.png" alt="2025-08-15T164045"><br><img src="2025-08-15T165920.png" alt="2025-08-15T165920"></p><p>CGLRVG：Configurable global-local reference voltage generation</p><p>因为kernel size的不同，input和weight的bit精度也不一样。整个CIM macro分为以下的操作模式。</p><p><img src="2025-08-15T171844.png" alt="2025-08-15T171844"></p><p>本文提出的Configurable Global &amp; Local Reference Voltage Generation (CGLRVG) 由两部分组成，分别使global Reference Voltage Generator (GRVG)和Local Reference Voltage Generator (LRVG)。GRVG包含 Configurable Replica Columns (CRC) 和 Voltage Buffers (VB)，在 CRC 中，Replica Read Bitline (RRBL) 通过设定数据模式，生成一个全局参考电压$V_{REF-G}$，它对应于目标MAC值所在的区间。对于一个 k-bit MACV（2’s complement 格式），MACV 的范围是：</p><script type="math/tex; mode=display">[-2^{k-1}， +(2^{k+1}-1)]</script><p><img src="2025-08-15T172614.png" alt="2025-08-15T172614"></p><p>举例以3×3 kernel、2-bit 输入、5-bit 权重为例，MACV的范围在-432到+405之间。输出精度量化到5bit，所以需要五个sensing phase。<br>GRVG：根据不同 CIM 配置（输入位宽、权重量化精度、kernel 大小等），灵活生成全局参考电压 $ V<em>{REF-G}$ ，之后LRVG利用电容阵列和可控开关，把$ V</em>{REF-G}$进行加权叠加或与VDD混合，从而生成多个局部参考电压$ V_{REF-L}$。</p><p>对于multi-bits CIM Macro的signal margin而言，当MACV较小时，PVT variation对signal margin影响较大。而当MACV较大时，RBL电压的波动对signal margin影响较大。</p>]]></content>
       
       
       
@@ -48,7 +34,7 @@
       <link href="/2025/08/06/%E5%85%B3%E4%BA%8EFP-INT-mixed%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C%E5%8A%A0%E9%80%9F%E5%99%A8%E8%AE%BE%E8%AE%A1%E7%9A%84work/"/>
       <url>/2025/08/06/%E5%85%B3%E4%BA%8EFP-INT-mixed%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C%E5%8A%A0%E9%80%9F%E5%99%A8%E8%AE%BE%E8%AE%A1%E7%9A%84work/</url>
       
-        <content type="html"><![CDATA[<h1 id="关于FP-INT-mixed神经网络加速器设计的work"><a href="#关于FP-INT-mixed神经网络加速器设计的work" class="headerlink" title="关于FP-INT mixed神经网络加速器设计的work"></a>关于FP-INT mixed神经网络加速器设计的work</h1><p>[清华大学 ISSCC2025]<br>An 88.36TOPS/W Bit-Level-Weight-Compressed  Large-Language-Model Accelerator with Cluster-Aligned<br>INT-FP-GEMM and Bi-Dimensional Workflow Reformulation</p><p>该工作对Transformer神经网络的activation采用了BF16量化，weight采用INT8量化。</p><p>因为BF16量化后的activation他们的exponent位存在很高的相似性。所以该work将每32个activation和它们对应的weight分为4个cluster。每个cluster中activation的exponent相差不超过3。之后每个cluster中的activation和weight单独做INT的乘法。对齐操作由对weight进行zero-extension完成，而不是对activation进行左移。而由于weight用了特殊的coding进行处理，zero extension带来的额外功耗很小。</p><p>[东南大学 ISSCC2025] A 28nm 17.83-to-62.84TFLOPS/W Broadcast-Alignment Floating-Point CIM Macro with Non-Two’s-Complement MAC for CNNs and Transformers </p>]]></content>
+        <content type="html"><![CDATA[<h1 id="关于FP-INT-mixed神经网络加速器设计的work"><a href="#关于FP-INT-mixed神经网络加速器设计的work" class="headerlink" title="关于FP-INT mixed神经网络加速器设计的work"></a>关于FP-INT mixed神经网络加速器设计的work</h1><h4 id="清华大学-ISSCC2025-An-88-36TOPS-W-Bit-Level-Weight-Compressed-Large-Language-Model-Accelerator-with-Cluster-Aligned-INT-FP-GEMM-and-Bi-Dimensional-Workflow-Reformulation"><a href="#清华大学-ISSCC2025-An-88-36TOPS-W-Bit-Level-Weight-Compressed-Large-Language-Model-Accelerator-with-Cluster-Aligned-INT-FP-GEMM-and-Bi-Dimensional-Workflow-Reformulation" class="headerlink" title="[清华大学 ISSCC2025] An 88.36TOPS/W Bit-Level-Weight-Compressed  Large-Language-Model Accelerator with Cluster-Aligned INT-FP-GEMM and Bi-Dimensional Workflow Reformulation"></a>[清华大学 ISSCC2025] An 88.36TOPS/W Bit-Level-Weight-Compressed  Large-Language-Model Accelerator with Cluster-Aligned INT-FP-GEMM and Bi-Dimensional Workflow Reformulation</h4><p>该工作对Transformer神经网络的activation采用了BF16量化，weight采用INT8量化。</p><p>因为BF16量化后的activation他们的exponent位存在很高的相似性。所以该work将每32个activation和它们对应的weight分为4个cluster。每个cluster中activation的exponent相差不超过3。之后每个cluster中的activation和weight单独做INT的乘法。对齐操作由对weight进行zero-extension完成，而不是对activation进行左移。而由于weight用了特殊的coding进行处理，zero extension带来的额外功耗很小。</p><h4 id="东南大学-ISSCC2025-A-28nm-17-83-to-62-84TFLOPS-W-Broadcast-Alignment-Floating-Point-CIM-Macro-with-Non-Two’s-Complement-MAC-for-CNNs-and-Transformers"><a href="#东南大学-ISSCC2025-A-28nm-17-83-to-62-84TFLOPS-W-Broadcast-Alignment-Floating-Point-CIM-Macro-with-Non-Two’s-Complement-MAC-for-CNNs-and-Transformers" class="headerlink" title="[东南大学 ISSCC2025] A 28nm 17.83-to-62.84TFLOPS/W Broadcast-Alignment Floating-Point CIM Macro with Non-Two’s-Complement MAC for CNNs and Transformers"></a>[东南大学 ISSCC2025] A 28nm 17.83-to-62.84TFLOPS/W Broadcast-Alignment Floating-Point CIM Macro with Non-Two’s-Complement MAC for CNNs and Transformers</h4><h4 id="清华大学-VLSI-2025-CELLA-A-28nm-Compute-Memory-Co-Optimized-Real-Time-Digital-CIM-Based-Edge-LLM-Accelerator-with-1-78ms-Response-in-Prefill-and-31-32-Token-s-in-Decoding"><a href="#清华大学-VLSI-2025-CELLA-A-28nm-Compute-Memory-Co-Optimized-Real-Time-Digital-CIM-Based-Edge-LLM-Accelerator-with-1-78ms-Response-in-Prefill-and-31-32-Token-s-in-Decoding" class="headerlink" title="[清华大学 VLSI 2025] CELLA: A 28nm Compute-Memory Co-Optimized Real-Time Digital CIM-Based Edge LLM Accelerator with 1.78ms-Response in Prefill and 31.32 Token/s in Decoding"></a>[清华大学 VLSI 2025] CELLA: A 28nm Compute-Memory Co-Optimized Real-Time Digital CIM-Based Edge LLM Accelerator with 1.78ms-Response in Prefill and 31.32 Token/s in Decoding</h4><p>这个工作重点针对大语言模型的Prefill和Decoding两个步骤进行优化。Prefill指的是transformer encoder把prompt读进去的过程，而Decoding则是transformer decoder逐token生成一个完整句子的过程。前者是compute-bound的，重点的优化目标是Time-To-First-Token (TTFT)，后者是memory-bound的，重点的优化目标是Time-Per-Output-Token (TPOT)。</p><p>FP16的Mantissa会经过提前进行对齐重新组织成“拼图”式样。MSB的拼图正好可以嵌入LSB之中，这个点还蛮有趣的。但尽管它的处理方式是bit-serial的，但只能跳过alignment-induced sparsity。另外这里的Dense Section的长度如果变化的话，可能会让MSB与LSB piece之间的移位关系变地更加复杂，增加硬件的复杂度。</p><p><img src="2025-08-17T095132.png" alt="2025-08-17T095132"></p><p>处理decoding时，对模型的weight进行non-uniform quantization，CIM处理它们的时候使用Content Addressed Memory (CAM)模式。比如对于2bit的weight，CIM会依次检索00，01，10，11。把检索出的weight地址对应的input activation累加起来再和对应的量化台阶RD做累加。为了降低mismatch带来的功耗开销（mismatch会让BL上放电），每16个weight就有一套检索顺序，多的先搜，已经match的后面就不搜了，减少 TPOT达 4.89×。另一个创新点则是处理动态Key-Value缓存（KV cache）时，用之前ELSA提出的hash prediction方法预测重要KV的对象，进一步减少TPOT达4.13×。</p>]]></content>
       
       
       
@@ -61,7 +47,7 @@
       <link href="/2025/08/06/%E5%BC%80%E5%85%B3%E7%94%B5%E5%AE%B9%E7%9A%84charge-injection%E4%B8%8Eclock-feedthrough/"/>
       <url>/2025/08/06/%E5%BC%80%E5%85%B3%E7%94%B5%E5%AE%B9%E7%9A%84charge-injection%E4%B8%8Eclock-feedthrough/</url>
       
-        <content type="html"><![CDATA[]]></content>
+        <content type="html"><![CDATA[<h1 id="开关电容的charge-injection与clock-feedthrough"><a href="#开关电容的charge-injection与clock-feedthrough" class="headerlink" title="开关电容的charge injection与clock feedthrough"></a>开关电容的charge injection与clock feedthrough</h1><p>当MOSFET关断后，沟道中的电荷会注入到MOSFET的source端。若source端连接着采样电容，那么该电容的采样电压便会不准确。这个误差被称为charge injection。另外在MOSFET 中，栅极金属和源极扩散区之间在栅氧化层之上的重叠区域形成的寄生电容（gate-source overlap capacitance）。这个寄生电容会和采样电容产生coupling，同样会造成采样电压的不准确，这个误差被称为clock feedthrough。</p><p><img src="2025-08-06T142937.png" alt="2025-08-06T142937"></p><p>以sample-and-hold电路为例，当M1关断后，charge injection与clock feedthrough将会对hold Capacitor造成误差。</p><p>参考：<br>J. Yu, ”CHARGE INJECTION AND CLOCK FEEDTHROUGH“</p>]]></content>
       
       
       
@@ -174,25 +160,13 @@
     
     
     <entry>
-      <title>SRAM Verilog behavior model写法</title>
+      <title>SRAM verilog behavior model写法</title>
       <link href="/2025/03/19/SRAM-verilog-behavior-model%E5%86%99%E6%B3%95/"/>
       <url>/2025/03/19/SRAM-verilog-behavior-model%E5%86%99%E6%B3%95/</url>
       
         <content type="html"><![CDATA[<p>以<a href="https://github.com/arktur04/SRAM提供的SRAM行为模型为例。下图展示了它的仿真结果。">https://github.com/arktur04/SRAM提供的SRAM行为模型为例。下图展示了它的仿真结果。</a><br><img src="2025-03-19T142511.png" alt="2025-03-19T142511"><br>该SRAM不涉及时钟<br>其端口定义如下图所示<br><img src="2025-03-19T213741.png" alt="2025-03-19T213741"></p>]]></content>
       
       
-      <categories>
-          
-          <category> uncategorized </category>
-          
-      </categories>
-      
-      
-        <tags>
-            
-            <tag> 芯片设计 </tag>
-            
-        </tags>
       
     </entry>
     
@@ -294,20 +268,7 @@
       <link href="/2024/10/17/%E4%BD%A0%E5%8F%AA%E9%9C%80%E8%A6%81%E5%8A%A0%E6%B3%95%E2%80%94%E2%80%94%E7%94%A8%E6%95%B4%E6%95%B0%E5%8A%A0%E6%B3%95%E8%BF%90%E7%AE%97%E9%80%BC%E8%BF%91%E6%B5%AE%E7%82%B9%E6%95%B0%E4%B9%98%E6%B3%95/"/>
       <url>/2024/10/17/%E4%BD%A0%E5%8F%AA%E9%9C%80%E8%A6%81%E5%8A%A0%E6%B3%95%E2%80%94%E2%80%94%E7%94%A8%E6%95%B4%E6%95%B0%E5%8A%A0%E6%B3%95%E8%BF%90%E7%AE%97%E9%80%BC%E8%BF%91%E6%B5%AE%E7%82%B9%E6%95%B0%E4%B9%98%E6%B3%95/</url>
       
-        <content type="html"><![CDATA[<h1 id="你只需要加法——用整数加法运算逼近浮点数乘法"><a href="#你只需要加法——用整数加法运算逼近浮点数乘法" class="headerlink" title="你只需要加法——用整数加法运算逼近浮点数乘法"></a>你只需要加法——用整数加法运算逼近浮点数乘法</h1><p>本文由加州的BitEnergy AI公司提出<br>文章名为：<br>Addition is All You Need for Energy-Efficient Language Models</p><p>首先抛出一个论点：<br>用Int32加法操作来预测Fp32浮点数操作仅仅消耗原来的2.7%的功耗。</p><p>作者的实验很有说服力，，把transformer-based LLMs中的乘法操作全部替换为L-Mul，几乎不产生精度损失。</p><p>其将标准的浮点数乘法：<br><img src="/2024/10/17/%E4%BD%A0%E5%8F%AA%E9%9C%80%E8%A6%81%E5%8A%A0%E6%B3%95%E2%80%94%E2%80%94%E7%94%A8%E6%95%B4%E6%95%B0%E5%8A%A0%E6%B3%95%E8%BF%90%E7%AE%97%E9%80%BC%E8%BF%91%E6%B5%AE%E7%82%B9%E6%95%B0%E4%B9%98%E6%B3%95/2024-10-17-22-53-59.png" class=""><br>替换为：<br><img src="/2024/10/17/%E4%BD%A0%E5%8F%AA%E9%9C%80%E8%A6%81%E5%8A%A0%E6%B3%95%E2%80%94%E2%80%94%E7%94%A8%E6%95%B4%E6%95%B0%E5%8A%A0%E6%B3%95%E8%BF%90%E7%AE%97%E9%80%BC%E8%BF%91%E6%B5%AE%E7%82%B9%E6%95%B0%E4%B9%98%E6%B3%95/2024-10-17-22-54-13.png" class=""></p><p>实际部署时，需要额外用于加l(m)的加法器，和处理偏置f1和f2的加法器。</p><img src="/2024/10/17/%E4%BD%A0%E5%8F%AA%E9%9C%80%E8%A6%81%E5%8A%A0%E6%B3%95%E2%80%94%E2%80%94%E7%94%A8%E6%95%B4%E6%95%B0%E5%8A%A0%E6%B3%95%E8%BF%90%E7%AE%97%E9%80%BC%E8%BF%91%E6%B5%AE%E7%82%B9%E6%95%B0%E4%B9%98%E6%B3%95/2024-10-17-23-10-32.png" class=""><h4 id="问：该方法和adderNet有什么区别"><a href="#问：该方法和adderNet有什么区别" class="headerlink" title="问：该方法和adderNet有什么区别"></a>问：该方法和adderNet有什么区别</h4>]]></content>
-      
-      
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title>版图设计中的一些小tips</title>
-      <link href="/2024/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/"/>
-      <url>/2024/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/</url>
-      
-        <content type="html"><![CDATA[<h1 id="版图设计中的一些小tips"><a href="#版图设计中的一些小tips" class="headerlink" title="版图设计中的一些小tips"></a>版图设计中的一些小tips</h1><h4 id="Via-enclosure应该怎么画"><a href="#Via-enclosure应该怎么画" class="headerlink" title="Via enclosure应该怎么画"></a>Via enclosure应该怎么画</h4><p>以TSMC 28nm HPCPLUS为例：<br>常见的DRC报错为Mx.EN.2<strong>Mx.EN.3</strong>Mx.EN.14__Mx.EN.15:</p><p>相关的DRC rule列出如下：<br>Mx.EN.2：   Enclosure of square VIAx-1 [at least two opposite sides]        N $\geq$ 0.03<br>Mx.EN.3：   Enclosure of VIAx-1 [all sides]     P $\geq$ 0.02<br>Mx.EN.14：  Enclosure of square VIAx-1      M $\geq$ 0.01<br>Mx.EN.15：  Enclosure of square VIAx-1 [at least two opposite sides]      N $\geq$ 0.025</p><img src="/2024/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/2024-10-09-10-24-16.png" class=""><h4 id="cell无法复制的问题"><a href="#cell无法复制的问题" class="headerlink" title="cell无法复制的问题"></a>cell无法复制的问题</h4><p>一般是版图中包含markers导致复制不成功，删除掉marker即可。<br><img src="/2024/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/2024-10-09-11-25-00.png" class=""></p><h4 id="VIVA-Graph测量pulse-width快捷键"><a href="#VIVA-Graph测量pulse-width快捷键" class="headerlink" title="VIVA Graph测量pulse width快捷键"></a>VIVA Graph测量pulse width快捷键</h4><p>A:  添加sample点<br>D:  测量差距</p><h4 id="schematics中生成多个instance"><a href="#schematics中生成多个instance" class="headerlink" title="schematics中生成多个instance"></a>schematics中生成多个instance</h4><img src="/2024/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/2024-10-15-11-10-32.png" class="">]]></content>
+        <content type="html"><![CDATA[<h1 id="你只需要加法——用整数加法运算逼近浮点数乘法"><a href="#你只需要加法——用整数加法运算逼近浮点数乘法" class="headerlink" title="你只需要加法——用整数加法运算逼近浮点数乘法"></a>你只需要加法——用整数加法运算逼近浮点数乘法</h1><p>本文由加州的BitEnergy AI公司提出<br>文章名为：<br>Addition is All You Need for Energy-Efficient Language Models</p><p>首先抛出一个论点：<br>用Int32加法操作来预测Fp32浮点数操作仅仅消耗原来的2.7%的功耗。</p><p>作者的实验很有说服力，把transformer-based LLMs中的乘法操作全部替换为L-Mul，几乎不产生精度损失。</p><p>其将标准的浮点数乘法：<br><img src="/2024/10/17/%E4%BD%A0%E5%8F%AA%E9%9C%80%E8%A6%81%E5%8A%A0%E6%B3%95%E2%80%94%E2%80%94%E7%94%A8%E6%95%B4%E6%95%B0%E5%8A%A0%E6%B3%95%E8%BF%90%E7%AE%97%E9%80%BC%E8%BF%91%E6%B5%AE%E7%82%B9%E6%95%B0%E4%B9%98%E6%B3%95/2024-10-17-22-53-59.png" class=""><br>替换为：<br><img src="/2024/10/17/%E4%BD%A0%E5%8F%AA%E9%9C%80%E8%A6%81%E5%8A%A0%E6%B3%95%E2%80%94%E2%80%94%E7%94%A8%E6%95%B4%E6%95%B0%E5%8A%A0%E6%B3%95%E8%BF%90%E7%AE%97%E9%80%BC%E8%BF%91%E6%B5%AE%E7%82%B9%E6%95%B0%E4%B9%98%E6%B3%95/2024-10-17-22-54-13.png" class=""></p><p>实际部署时，需要额外用于加l(m)的加法器，和处理偏置f1和f2的加法器。</p><img src="/2024/10/17/%E4%BD%A0%E5%8F%AA%E9%9C%80%E8%A6%81%E5%8A%A0%E6%B3%95%E2%80%94%E2%80%94%E7%94%A8%E6%95%B4%E6%95%B0%E5%8A%A0%E6%B3%95%E8%BF%90%E7%AE%97%E9%80%BC%E8%BF%91%E6%B5%AE%E7%82%B9%E6%95%B0%E4%B9%98%E6%B3%95/2024-10-17-23-10-32.png" class=""><h4 id="问：该方法和adderNet有什么区别"><a href="#问：该方法和adderNet有什么区别" class="headerlink" title="问：该方法和adderNet有什么区别"></a>问：该方法和adderNet有什么区别</h4>]]></content>
       
       
       
@@ -435,18 +396,6 @@
         <content type="html"><![CDATA[<h1 id="Pytorch-DDP实践"><a href="#Pytorch-DDP实践" class="headerlink" title="Pytorch DDP实践"></a>Pytorch DDP实践</h1><p>关于使用多GPU进行分布式训练的详细教程可见<a href="https://zhuanlan.zhihu.com/p/113694038">https://zhuanlan.zhihu.com/p/113694038</a></p><p>实现一个distributed data parallel的重点是管理各个进程之间的通信问题。首先我们需要创建进程组。</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">import os</span><br><span class="line">import sys</span><br><span class="line">import tempfile</span><br><span class="line">import torch</span><br><span class="line">import torch.distributed as dist</span><br><span class="line">import torch.nn as nn</span><br><span class="line">import torch.optim as optim</span><br><span class="line">import torch.multiprocessing as mp</span><br><span class="line"></span><br><span class="line">from torch.nn.parallel import DistributedDataParallel as DDP</span><br><span class="line"></span><br><span class="line"># On Windows platform, the torch.distributed package only</span><br><span class="line"># supports Gloo backend, FileStore and TcpStore.</span><br><span class="line"># For FileStore, set init_method parameter in init_process_group</span><br><span class="line"># to a local file. Example as follow:</span><br><span class="line"># init_method=&quot;file:///f:/libtmp/some_file&quot;</span><br><span class="line"># dist.init_process_group(</span><br><span class="line">#    &quot;gloo&quot;,</span><br><span class="line">#    rank=rank,</span><br><span class="line">#    init_method=init_method,</span><br><span class="line">#    world_size=world_size)</span><br><span class="line"># For TcpStore, same way as on Linux.</span><br><span class="line"></span><br><span class="line">def setup(rank, world_size):</span><br><span class="line">    os.environ[&#x27;MASTER_ADDR&#x27;] = &#x27;localhost&#x27;</span><br><span class="line">    os.environ[&#x27;MASTER_PORT&#x27;] = &#x27;12355&#x27;</span><br><span class="line"></span><br><span class="line">    # initialize the process group</span><br><span class="line">    dist.init_process_group(&quot;gloo&quot;, rank=rank, world_size=world_size)</span><br><span class="line"></span><br><span class="line">def cleanup():</span><br><span class="line">    dist.destroy_process_group()</span><br><span class="line"></span><br></pre></td></tr></table></figure><p>这里的communication backend有四个选项：gloo（facebook），MPI（OpenMPI），NCCL（nvidia）与TCP。他们属于不同的分布式框架。一般GPU训练选择nccl，CPU训练选gloo。</p><h2 id="单机多卡"><a href="#单机多卡" class="headerlink" title="单机多卡"></a>单机多卡</h2><p>首先，检测GPU数目。<br>可以使用<code>torch.cuda.device_count()</code>来打印可用的GPU数目。</p><p><strong>多卡训练要考虑通信开销的，是个trade off的过程，不见得四块卡一定比两块卡快多少，可能是训练到四块卡的时候通信开销已经占了大头。</strong></p><h4 id="怎样将原来的单GPU训练代码改为多卡distributed训练代码？"><a href="#怎样将原来的单GPU训练代码改为多卡distributed训练代码？" class="headerlink" title="怎样将原来的单GPU训练代码改为多卡distributed训练代码？"></a>怎样将原来的单GPU训练代码改为多卡distributed训练代码？</h4><p>模型侧，只需要用DistributedDataParallel包装一下原来的model即可，在backend端它会支持梯度的All-Reduce操作。数据侧，我们nn.utils.data.DistributedSampler来给各个进程切分数据，只需要在dataloader中使用这个sampler就好，值得注意的一点是你要训练循环过程的每个epoch开始时调用train_sampler.set_epoch(epoch)，（主要是为了保证每个epoch的划分是不同的）其它的训练代码都保持不变。</p><h4 id="怎样查看本地ip与通信端口？"><a href="#怎样查看本地ip与通信端口？" class="headerlink" title="怎样查看本地ip与通信端口？"></a>怎样查看本地ip与通信端口？</h4><p>配置分布式任务的第一步，是确保机器之间能够互相正常通信：</p><h2 id="多机多卡"><a href="#多机多卡" class="headerlink" title="多机多卡"></a>多机多卡</h2>]]></content>
       
       
-      <categories>
-          
-          <category> uncategorized </category>
-          
-      </categories>
-      
-      
-        <tags>
-            
-            <tag> 算法 </tag>
-            
-        </tags>
       
     </entry>
     
@@ -686,6 +635,19 @@
     
     
     <entry>
+      <title>帝3——美国流程</title>
+      <link href="/2024/07/11/%E5%B8%9D3%E2%80%94%E2%80%94%E7%BE%8E%E5%9B%BD%E6%B5%81%E7%A8%8B/"/>
+      <url>/2024/07/11/%E5%B8%9D3%E2%80%94%E2%80%94%E7%BE%8E%E5%9B%BD%E6%B5%81%E7%A8%8B/</url>
+      
+        <content type="html"><![CDATA[<h1 id="5马高地流"><a href="#5马高地流" class="headerlink" title="5马高地流"></a>5马高地流</h1><p>开局将军修贸易站，一卡发中国移民。10农用<strong>宾夕法尼亚州</strong>上本，中国移民再修一个贸易战，加上技能叫的贸易站，总计三贸易站。二卡发高级酒馆。上本时间约为<strong>两分30秒</strong>。上本期间全员伐木，200木起一个酒馆。</p><p><strong>4分钟</strong>完成上本。<br><strong>殖民时代</strong>: 军事马车起一个马厩，一卡弗吉尼亚大会，起1个教堂。之后发阿肯色州前哨，用三马车造两个酒馆，一个教堂。<strong>教堂研究金流科技</strong>，之后用中国移民再造一个贸易站。此时由于由四贸易站，三酒馆与两个教堂。用400金可以发出10个苏格兰高地兵，同时开始出轻骑兵。<br>三卡发700木，紧接着4卡可以发鲨鱼弓箭手或者原住民条约。</p><p><strong>7分30秒</strong>10高地+5轻骑兵+几个亡命散兵冲家！</p><p>该例程变体为，可以选择不出马，教堂持续出间谍，用于对对面单位进行减速。</p><h1 id="三金流"><a href="#三金流" class="headerlink" title="三金流"></a>三金流</h1><p>开局起房子并且全员打猎，一卡发资本主义。12农宾夕法尼亚州上殖民。上时代期间全员采金，采到300金发荷兰移民，之后起市场，研究猎狗。<br>时代2军事人力车变兵营/马厩，留3农即可保证火枪或者马刷满，刷马的话可以等马厩造好后等20秒。时代2一卡发费城会议，之后立即研究教堂金流科技。</p><p>如果压力不大，下一张发汉密尔顿经济血，买木起第二个教堂。<br>如果需要留殖民，则保持出兵的同时发700木。建造兵营与两个房子，然后发鲨齿弓箭手。</p><p>对付阿兹特克列车，俄罗斯或者墨西哥下加利福尼亚革命，一卡直接700木，然后二卡发鲨鱼弓箭手，这样才能在6分半的时候用15火枪手，5民兵以及12鲨鱼弓箭手守家，否则就很容易寄掉。</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>评测multi-modal task的benchmark</title>
       <link href="/2024/07/11/%E8%AF%84%E6%B5%8Bmulti-modal-task%E7%9A%84benchmark/"/>
       <url>/2024/07/11/%E8%AF%84%E6%B5%8Bmulti-modal-task%E7%9A%84benchmark/</url>
@@ -792,7 +754,20 @@
       <link href="/2024/06/17/%E5%8F%82%E4%BC%9A2024%E2%80%94%E2%80%94Frontiers-of-AI-Accelerators-Technologies-Circuits-and-Applications-IV/"/>
       <url>/2024/06/17/%E5%8F%82%E4%BC%9A2024%E2%80%94%E2%80%94Frontiers-of-AI-Accelerators-Technologies-Circuits-and-Applications-IV/</url>
       
-        <content type="html"><![CDATA[<h1 id="参会2024——Frontiers-of-AI-Accelerators-Technologies-Circuits-and-Applications-IV"><a href="#参会2024——Frontiers-of-AI-Accelerators-Technologies-Circuits-and-Applications-IV" class="headerlink" title="参会2024——Frontiers of AI Accelerators: Technologies, Circuits and Applications IV"></a>参会2024——Frontiers of AI Accelerators: Technologies, Circuits and Applications IV</h1><h2 id="Opening-Remarks"><a href="#Opening-Remarks" class="headerlink" title="Opening Remarks"></a>Opening Remarks</h2><p>Prof. Tim Cheng是ACCESS（AI Chip Center for Emerging Smart Systems）实验室的Center Director</p><h3 id="Can-we-automate-accelerator-design-with-deep-learning-——-Prof-Jason-CONG-ULCA"><a href="#Can-we-automate-accelerator-design-with-deep-learning-——-Prof-Jason-CONG-ULCA" class="headerlink" title="Can we automate accelerator design with deep learning —— Prof. Jason CONG (ULCA)"></a>Can we automate accelerator design with deep learning —— Prof. Jason CONG (ULCA)</h3><h3 id="Workshop-1-Architectural-and-System-Integration-for-Efficient-Edge-AI-Computing"><a href="#Workshop-1-Architectural-and-System-Integration-for-Efficient-Edge-AI-Computing" class="headerlink" title="Workshop #1 Architectural and System Integration for Efficient Edge AI Computing"></a>Workshop #1 Architectural and System Integration for Efficient Edge AI Computing</h3><p><strong>“LLM Inference On Chip” by Prof. Hao Yu (南方科技大学)</strong></p><p>Integration of in-memory computing architecture on top of systolic cubic arrays</p><p><strong>“Reconfigurable AI Processor: Fundamental Concepts, Application, and Future Trends” by Prof. Shouyi YIN (清华大学)</strong></p><p><strong>Reconfigurable AI processor</strong><br>chip-level reconfiguration —— adjust the parallelism<br>element-level reconfiguration —— change computing precision, sparsity processing pattern</p><p><strong>“Reconfigurable Computing for Dynamic Vision Sensing in Edge Applications” by Prof. Hayden SO (香港大学)</strong></p><p>target event-based vision</p><p>ESDA is a modular system that allows customized sparse DNN Accelerators to be constructed rapidly using a set of parametrizable modules. </p><p>Exploit the underlying reconfigurable fabric of FPGAs to implement a novel asynchronously triggered spiking neural network (SNN)</p><h3 id="Public-Lecture-2-Neuro-Inspired-Edge-AI-Architectures-for-the-Internet-of-Things-Era"><a href="#Public-Lecture-2-Neuro-Inspired-Edge-AI-Architectures-for-the-Internet-of-Things-Era" class="headerlink" title="Public Lecture #2: Neuro-Inspired Edge AI Architectures for the Internet-of-Things Era"></a>Public Lecture #2: Neuro-Inspired Edge AI Architectures for the Internet-of-Things Era</h3><h3 id="Public-Lecture-3-Cross-Layer-Design-for-Enhancing-the-Resilience-of-In-Memory-Computing-to-Device-Variations"><a href="#Public-Lecture-3-Cross-Layer-Design-for-Enhancing-the-Resilience-of-In-Memory-Computing-to-Device-Variations" class="headerlink" title="Public Lecture #3: Cross-Layer Design for Enhancing the Resilience of In-Memory Computing to Device Variations"></a>Public Lecture #3: Cross-Layer Design for Enhancing the Resilience of In-Memory Computing to Device Variations</h3><h3 id="Entrepreneurship-Workshop"><a href="#Entrepreneurship-Workshop" class="headerlink" title="Entrepreneurship Workshop"></a>Entrepreneurship Workshop</h3><p><strong>“Innovation Unleashed: The Rise of Deep Tech Start-ups from Academic Roots”</strong> —— Mr. Wenlei ZHUANG (香港科技大学)</p><p><strong>“Embracing Opportunities: Fuelling the Microelectronics Ecosystem in Hong Kong”</strong> —— Dr. Carmen FUNG (香港科技园)</p><p><strong>“Era of Great Transformation - The New Opportunities of Innovation and Entrepreneurship”</strong> —— Mr. Peter WU (Sinovation Ventures 创新工场)</p><p><strong>“Meeting the Implementation Needs of AI in the Smart Manufacturing Sector”</strong> —— Mr. Yi PAN (Value Capital/Inovance Technology 汇川技术)</p><h2 id="Public-Lecture-4-Mini-Gemini-a-New-Large-Multi-Modal-Model"><a href="#Public-Lecture-4-Mini-Gemini-a-New-Large-Multi-Modal-Model" class="headerlink" title="Public Lecture #4: Mini-Gemini, a New Large Multi-Modal Model"></a>Public Lecture #4: Mini-Gemini, a New Large Multi-Modal Model</h2><p>—— Prof. Jiaya JIA</p><h3 id="Workshop-2-Hardware-Architectures-and-Designs-for-Machine-Learning-and-Beyond"><a href="#Workshop-2-Hardware-Architectures-and-Designs-for-Machine-Learning-and-Beyond" class="headerlink" title="Workshop #2: Hardware Architectures and Designs for Machine Learning and Beyond"></a>Workshop #2: Hardware Architectures and Designs for Machine Learning and Beyond</h3><p>“Design Automation for Processing-in-Memory Architectures” —— Prof. Xiaoming CHEN</p><p>“RaDe-GS: Rasterizing Depth in Gaussian Splatting” —— Prof. Ping TAN （香港科技大学）</p><p>“Stochastic Multivariate Universal-Radix Finite-State Machine: A New and Hardware-Friendly Architecture for Multivariate Nonlinear Function Approximation” —— Prof. Ngai WONG (香港大学)</p><p>在深度神经网络中，non-linearity对于捕捉input与output之间的关系至关重要。本文试图用stocastic computing的方式来节约non-linear function(比如GELU)的计算开销。</p><h2 id="Public-Lecture-5-Hardware-Design-and-the-Fairness-of-A-Neural-Network"><a href="#Public-Lecture-5-Hardware-Design-and-the-Fairness-of-A-Neural-Network" class="headerlink" title="Public Lecture #5: Hardware Design and the Fairness of A Neural Network"></a>Public Lecture #5: Hardware Design and the Fairness of A Neural Network</h2><h2 id="Workshop-3-Intelligent-Computing-from-Architecture-to-Algorithm"><a href="#Workshop-3-Intelligent-Computing-from-Architecture-to-Algorithm" class="headerlink" title="Workshop #3: Intelligent Computing, from Architecture to Algorithm"></a>Workshop #3: Intelligent Computing, from Architecture to Algorithm</h2><h2 id="Workshop-4-Hardware-Accelerated-Efficient-AI-Applications"><a href="#Workshop-4-Hardware-Accelerated-Efficient-AI-Applications" class="headerlink" title="Workshop #4: Hardware-Accelerated Efficient AI Applications"></a>Workshop #4: Hardware-Accelerated Efficient AI Applications</h2><p><strong>“Hardware/Software Optimization for Edge AI — Two Sides of a Coin” ——Dr. Giovanni ANSALONI (EPFL洛桑联邦理工学院)</strong></p><p><strong>“Adapting Magnetoresistive Memory Devices for Unconventional Computing” ——Prof. Qiming SHAO</strong></p><p><strong>“Early Timing and Power Evaluation for VLSI Design” ——Zhiyao Xie</strong></p><h1 id="一些相关的材料"><a href="#一些相关的材料" class="headerlink" title="一些相关的材料"></a>一些相关的材料</h1><h3 id="Li-Yanwei-et-al-“Mini-gemini-Mining-the-potential-of-multi-modality-vision-language-models-”"><a href="#Li-Yanwei-et-al-“Mini-gemini-Mining-the-potential-of-multi-modality-vision-language-models-”" class="headerlink" title="Li, Yanwei, et al. “Mini-gemini: Mining the potential of multi-modality vision language models.”"></a>Li, Yanwei, et al. “Mini-gemini: Mining the potential of multi-modality vision language models.”</h3><p>对于multi-modality Vision Language Models (VLMs)，学界的academic initiatives与well-established model比如GPT-4和Gemini等模型还存在很大的performance gap。他们从以下三个方面解决这个问题：1. 高分辨率visual token 2.高质量的数据 3.VLM guided generation。<br>他们介绍了一种any-to-any的paradigm，即可以将文字和图片同时作为模型的输入以及输出。</p>]]></content>
+        <content type="html"><![CDATA[<h1 id="参会2024——Frontiers-of-AI-Accelerators-Technologies-Circuits-and-Applications-IV"><a href="#参会2024——Frontiers-of-AI-Accelerators-Technologies-Circuits-and-Applications-IV" class="headerlink" title="参会2024——Frontiers of AI Accelerators: Technologies, Circuits and Applications IV"></a>参会2024——Frontiers of AI Accelerators: Technologies, Circuits and Applications IV</h1><h2 id="Opening-Remarks"><a href="#Opening-Remarks" class="headerlink" title="Opening Remarks"></a>Opening Remarks</h2><p>Prof. Tim Cheng 是ACCESS（AI Chip Center for Emerging Smart Systems）实验室的Center Director，同时担任香港科技大学副校长。</p><h3 id="Can-we-automate-accelerator-design-with-deep-learning-——-Prof-Jason-CONG-ULCA"><a href="#Can-we-automate-accelerator-design-with-deep-learning-——-Prof-Jason-CONG-ULCA" class="headerlink" title="Can we automate accelerator design with deep learning —— Prof. Jason CONG (ULCA)"></a>Can we automate accelerator design with deep learning —— Prof. Jason CONG (ULCA)</h3><p>Prof. Jason Cong 是 UCLA VAST 实验室主任，也是电子设计自动化（EDA）与定制计算领域的核心人物。重点研究从C/C++到FPGA的映射，并推动Vivado HLS的商业化应用。Jason Cong提出”让大<strong>多数软件程序员成为硬件设计师</strong>“的愿景，介绍了他团队最新的研究进展，重点放在下面三个点上:</p><ol><li><p>使用图神经网络（GNN）捕捉 HLS 设计数据的图结构，进行 HLS 质量预测；</p></li><li><p>引入 迁移学习，提高模型在新应用或新架构上的泛化能力；</p></li><li><p>借助 大语言模型（LLMs） 开展跨模态学习，实现语言接口与设计参数之间的语义联系</p></li></ol><h3 id="Public-Lecture-4-“Mini-Gemini-a-New-Large-Multi-Modal-Model”-—-Prof-Jiaya-Jia"><a href="#Public-Lecture-4-“Mini-Gemini-a-New-Large-Multi-Modal-Model”-—-Prof-Jiaya-Jia" class="headerlink" title="Public Lecture #4 “Mini-Gemini, a New Large Multi-Modal Model” — Prof. Jiaya Jia"></a>Public Lecture #4 “Mini-Gemini, a New Large Multi-Modal Model” — Prof. Jiaya Jia</h3><p>贾佳亚教授介绍了 Mini-Gemini，一个面向视觉与语言任务的新型多模态大模型。和我们熟悉的 GPT-4 或 Google 的 Gemini 相比，Mini-Gemini 虽然规模更小，但它瞄准的是“如何用更有效的方式提升模型的表现”，而不是单纯地扩大参数数量。</p><p>另外贾教授还介绍了一种any-to-any的paradigm，即可以将文字和图片同时作为模型的输入以及输出，“文字和图片之间的交互被彻底打通了”。</p><p>根据团队公布的实验结果，Mini-Gemini 在多个常见的多模态基准测试上取得了领先成绩。在一些零样本（zero-shot）测试里，它甚至超越了部分闭源的大模型。与此同时，它的规模覆盖了从 2B 参数的小模型到 34B 参数的中大型模型，适应不同算力条件。代码也已经开源在 GitHub 上。</p><h2 id="Workshop-1：Architectural-and-System-Integration-for-Efficient-Edge-AI-Computing"><a href="#Workshop-1：Architectural-and-System-Integration-for-Efficient-Edge-AI-Computing" class="headerlink" title="Workshop #1：Architectural and System Integration for Efficient Edge AI Computing"></a>Workshop #1：Architectural and System Integration for Efficient Edge AI Computing</h2><p><strong>“LLM Inference On Chip” by Prof. Hao Yu (南方科技大学)</strong></p><p>余浩教授探讨将大语言模型推理功能集成到片上，比如采用 in-memory computing 与 systolic cubic arrays 的融合形式。</p><p><strong>“Reconfigurable AI Processor: Fundamental Concepts, Application, and Future Trends” by Prof. Shouyi YIN (清华大学)</strong></p><p>尹教授强调可重构处理器的两个层级——芯片级的并行度调整，以及元件级的精度、稀疏度调整。</p><p><strong>Reconfigurable AI processor</strong><br>chip-level reconfiguration —— adjust the parallelism<br>element-level reconfiguration —— change computing precision, sparsity processing pattern</p><p><strong>“Reconfigurable Computing for Dynamic Vision Sensing in Edge Applications” by Prof. Hayden So (香港大学)</strong></p><p>So教授介绍了“ESDA”系统，利用 FPGA 的可重构架构实现模块化、参数化的稀疏 DNN 加速器，并支持异步触发的脉冲神经网络。</p><h2 id="Workshop-2：Hardware-Architectures-and-Designs-for-Machine-Learning-and-Beyond"><a href="#Workshop-2：Hardware-Architectures-and-Designs-for-Machine-Learning-and-Beyond" class="headerlink" title="Workshop #2：Hardware Architectures and Designs for Machine Learning and Beyond"></a>Workshop #2：Hardware Architectures and Designs for Machine Learning and Beyond</h2><p>该workshop集中探讨如何让硬件架构更好地服务于机器学习与更广泛的计算任务。相比纯粹的软件创新，这些工作更接近硬件底层，因此特别强调效率、能耗和实际部署的可行性。</p><p><strong>Design Automation for Processing-in-Memory Architectures —— Prof. Xiaoming Chen (中国科学院大学)</strong></p><p>Processing-in-Memory是近年来芯片领域的热门话题。传统计算需要数据在内存和处理器之间不断搬运，而 PIM 的思路是把计算功能直接嵌入到存储器里，这样大大减少了数据移动，降低能耗。<br>Prof. Chen 的报告聚焦在“如何自动化设计这类架构”。过去，PIM 芯片的设计往往要工程师手工调优，非常耗时。通过设计自动化，研究团队希望能建立一套工具链，让硬件设计者像使用编程语言一样方便地构建 PIM 架构，从而加快落地应用。</p><p><strong>RaDe-GS: Rasterizing Depth in Gaussian Splatting —— Prof. Ping Tan (港科大)</strong></p><p>Prof. Ping Tan 的研究跨越了计算机视觉和硬件设计。他提出的 RaDe-GS 技术与一种新兴的 3D 表示方法 —— Gaussian Splatting —— 有关。这种方法能用一系列“高斯球”来表示三维场景，既紧凑又能保持较好的渲染质量。<br>RaDe-GS 的创新点在于：它把深度信息（depth）更高效地转换和光栅化（rasterize），以便硬件能够更快地处理三维场景。</p><p><strong>Stochastic Multivariate Universal-Radix FSM —— Prof. Ngai Wong</strong></p><p>Prof. Wong 的报告非常数学，重点关注怎样处理神经网络里的非线性函数。在深度学习中，非线性函数比如GELU是模型捕捉复杂关系的关键。但在硬件实现时，这些函数的计算往往开销很大。<br>他的团队提出了一种新架构：基于随机计算（stochastic computing）的多变量有限状态机（FSM），能以更节省资源的方式近似这些非线性函数。换句话说，他们用“巧妙的硬件数学”来减少功耗和面积，同时又能保留模型的表达能力，很有意思。</p><h3 id="Public-Lecture-2-Neuro-Inspired-Edge-AI-Architectures-for-the-Internet-of-Things-Era"><a href="#Public-Lecture-2-Neuro-Inspired-Edge-AI-Architectures-for-the-Internet-of-Things-Era" class="headerlink" title="Public Lecture #2: Neuro-Inspired Edge AI Architectures for the Internet-of-Things Era"></a>Public Lecture #2: Neuro-Inspired Edge AI Architectures for the Internet-of-Things Era</h3><h3 id="Public-Lecture-3-Cross-Layer-Design-for-Enhancing-the-Resilience-of-In-Memory-Computing-to-Device-Variations"><a href="#Public-Lecture-3-Cross-Layer-Design-for-Enhancing-the-Resilience-of-In-Memory-Computing-to-Device-Variations" class="headerlink" title="Public Lecture #3: Cross-Layer Design for Enhancing the Resilience of In-Memory Computing to Device Variations"></a>Public Lecture #3: Cross-Layer Design for Enhancing the Resilience of In-Memory Computing to Device Variations</h3><h3 id="Entrepreneurship-Workshop"><a href="#Entrepreneurship-Workshop" class="headerlink" title="Entrepreneurship Workshop"></a>Entrepreneurship Workshop</h3><p><strong>“Innovation Unleashed: The Rise of Deep Tech Start-ups from Academic Roots”</strong> —— Mr. Wenlei ZHUANG (香港科技大学)</p><p><strong>“Embracing Opportunities: Fuelling the Microelectronics Ecosystem in Hong Kong”</strong> —— Dr. Carmen FUNG (香港科技园)</p><p><strong>“Era of Great Transformation - The New Opportunities of Innovation and Entrepreneurship”</strong> —— Mr. Peter WU (Sinovation Ventures 创新工场)</p><p><strong>“Meeting the Implementation Needs of AI in the Smart Manufacturing Sector”</strong> —— Mr. Yi PAN (Value Capital/Inovance Technology 汇川技术)</p><h3 id="Workshop-2-Hardware-Architectures-and-Designs-for-Machine-Learning-and-Beyond"><a href="#Workshop-2-Hardware-Architectures-and-Designs-for-Machine-Learning-and-Beyond" class="headerlink" title="Workshop #2: Hardware Architectures and Designs for Machine Learning and Beyond"></a>Workshop #2: Hardware Architectures and Designs for Machine Learning and Beyond</h3><p>“Design Automation for Processing-in-Memory Architectures” —— Prof. Xiaoming CHEN</p><p>“RaDe-GS: Rasterizing Depth in Gaussian Splatting” —— Prof. Ping TAN （香港科技大学）</p><p>“Stochastic Multivariate Universal-Radix Finite-State Machine: A New and Hardware-Friendly Architecture for Multivariate Nonlinear Function Approximation” —— Prof. Ngai WONG (香港大学)</p><p>在深度神经网络中，non-linearity对于捕捉input与output之间的关系至关重要。本文试图用stocastic computing的方式来节约non-linear function(比如GELU)的计算开销。</p><h2 id="Public-Lecture-5-Hardware-Design-and-the-Fairness-of-A-Neural-Network"><a href="#Public-Lecture-5-Hardware-Design-and-the-Fairness-of-A-Neural-Network" class="headerlink" title="Public Lecture #5: Hardware Design and the Fairness of A Neural Network"></a>Public Lecture #5: Hardware Design and the Fairness of A Neural Network</h2><h2 id="Workshop-3-Intelligent-Computing-from-Architecture-to-Algorithm"><a href="#Workshop-3-Intelligent-Computing-from-Architecture-to-Algorithm" class="headerlink" title="Workshop #3: Intelligent Computing, from Architecture to Algorithm"></a>Workshop #3: Intelligent Computing, from Architecture to Algorithm</h2><h2 id="Workshop-4-Hardware-Accelerated-Efficient-AI-Applications"><a href="#Workshop-4-Hardware-Accelerated-Efficient-AI-Applications" class="headerlink" title="Workshop #4: Hardware-Accelerated Efficient AI Applications"></a>Workshop #4: Hardware-Accelerated Efficient AI Applications</h2><p><strong>“Hardware/Software Optimization for Edge AI — Two Sides of a Coin” ——Dr. Giovanni ANSALONI (EPFL洛桑联邦理工学院)</strong></p><p><strong>“Adapting Magnetoresistive Memory Devices for Unconventional Computing” ——Prof. Qiming SHAO</strong></p><p><strong>“Early Timing and Power Evaluation for VLSI Design” ——Zhiyao Xie</strong></p><p>最后附一张厦门湾的海景。</p><p><img src="2025-08-18T175730.png" alt="2025-08-18T175730"></p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>帝3——墨西哥革命</title>
+      <link href="/2024/06/16/%E5%B8%9D3%E2%80%94%E2%80%94%E5%A2%A8%E8%A5%BF%E5%93%A5%E9%9D%A9%E5%91%BD/"/>
+      <url>/2024/06/16/%E5%B8%9D3%E2%80%94%E2%80%94%E5%A2%A8%E8%A5%BF%E5%93%A5%E9%9D%A9%E5%91%BD/</url>
+      
+        <content type="html"><![CDATA[<h1 id="帝3——墨西哥革命"><a href="#帝3——墨西哥革命" class="headerlink" title="帝3——墨西哥革命"></a>帝3——墨西哥革命</h1><h3 id="下加利福尼亚革命"><a href="#下加利福尼亚革命" class="headerlink" title="下加利福尼亚革命"></a>下加利福尼亚革命</h3><p>开局不造市场也不造贸易站，木头箱只需要捡一个，金币箱不用捡，14农上时代。一卡发公共粮食交易所，大庄园前置。上时代过程中4农伐木，为的是在上本后花250肉与木发克里奥尔人（9个西班牙火枪手）。其余农民全部打猎。城镇中心里把农民点到18个。</p><p><strong>4分15秒</strong>左右升级完成后，军事马车变为酒馆。一卡发克里奥尔人，先去对手家里进行一波骚扰，二卡可以考虑发原住民条约。之后所有农民往前线拉，同时进行<strong>下加利福尼亚革命</strong>。<strong>所有农民变为军事冒险家，同时送三个军事马车</strong>，此时时间在<strong>6分30秒</strong>左右。</p><img src="/2024/06/16/%E5%B8%9D3%E2%80%94%E2%80%94%E5%A2%A8%E8%A5%BF%E5%93%A5%E9%9D%A9%E5%91%BD/2024-06-16-21-36-57.png" class=""><p>两个军事马车修建原住民交易站，之后原住民条约即可生效，送来一批土著兵。上本之后可以发行者帮派补充兵力，或是发600金。</p><h2 id="打法2"><a href="#打法2" class="headerlink" title="打法2"></a>打法2</h2><p>开局起一个贸易站，<strong>2分</strong>左右以10农上时代，一卡发公共粮食交易，大庄园前置。上时代期间，吃够500肉，之后所有农采金。<strong>3分30秒</strong>左右升级完成，军事马车变为酒馆。二本一卡发700木。理想情况下，<strong>4分10秒</strong>开启下加利福尼亚革命。最好三个马车全部变为贸易站。同时用200肉，200木升级贸易路线。</p><p>350肉木金</p><p>补经济的话，可以一卡发工厂，二卡发细流经济，之后酒馆保持出亡命单位，消耗对面。三卡发猎枪，送3个强盗与3个牲畜盗贼，此时大概有18个强盗，3个牲畜盗贼，10名军事冒险家，<strong>7分30秒</strong>打出一拳。</p><h3 id="里奥格兰德革命"><a href="#里奥格兰德革命" class="headerlink" title="里奥格兰德革命"></a>里奥格兰德革命</h3><img src="/2024/06/16/%E5%B8%9D3%E2%80%94%E2%80%94%E5%A2%A8%E8%A5%BF%E5%93%A5%E9%9D%A9%E5%91%BD/2024-06-16-21-44-54.png" class=""><p>一本大庄园前置，二卡发教堂工程。圣路易斯波托西州上三本。大教堂可以使用500金加速上三本时间。</p><h2 id="FF"><a href="#FF" class="headerlink" title="FF"></a>FF</h2><p>塔巴斯科州升级。</p>]]></content>
       
       
       
@@ -806,6 +781,19 @@
       <url>/2024/06/14/6%E6%9C%8814%E6%97%A5%E5%A4%A7%E9%9B%A8%E4%B8%AD%E7%9A%84%E5%8D%88%E9%A4%90/</url>
       
         <content type="html"><![CDATA[<h1 id="6月14日雷雨中的午餐"><a href="#6月14日雷雨中的午餐" class="headerlink" title="6月14日雷雨中的午餐"></a>6月14日雷雨中的午餐</h1><h4 id="（本故事采样于真实的交谈，部分文字由ChatGPT补充）"><a href="#（本故事采样于真实的交谈，部分文字由ChatGPT补充）" class="headerlink" title="（本故事采样于真实的交谈，部分文字由ChatGPT补充）"></a>（本故事采样于真实的交谈，部分文字由ChatGPT补充）</h4><p>夏初的中午，空气仿佛被水汽泡胀得沉重。又是台风天，窗外雷声滚滚，雨水泼天而下，像是上天在清洗整个校园。电子系的实验室窗玻璃上挂满了雨珠，屋内却闷热不堪，唯一的风来自角落那台呼哧呼哧喘着气的落地扇。</p><p>几位博士生聚在休息室，勉强挤出一点空间，各自拆着外卖盒。又是乌鸡米线，空气中弥漫着香辣酱、卤蛋、咖啡混杂的味道，像一锅由高压生活炖出来的青春。</p><p>Nomad坐在角落，夹着凉掉的煎蛋，突然说：</p><p>“老莫，读博做FPGA加速方向能不能搞呢？”</p><p>话音刚落，实验室一瞬陷入短暂的沉默，只剩下外头雷雨声灌进屋子里。</p><p>坐在靠窗一侧的老莫抬起头来，他没吃饭，只是握着一杯兑了冰块的黑咖啡，像往常一样一脸疲惫，眼神却清醒。他盯了Nomad一眼，叹了口气，说：</p><p>“现在读博士还搞这个？建议换导师，或者早点跑路。”</p><p>众人笑了，笑声中带着些调侃、些许认同，还有些说不清道不明的心照不宣。</p><p>Nomad并不恼，眨了眨眼，说：“支持啊，我是认真的。不仅是FPGA，整个数字IC这一套，关键点其实在软件不在硬件。核心是——能不能找到别人没开发过的坑，咱自己填一下。”</p><p>老莫抿了一口咖啡，眼角带笑，声音懒洋洋地丢过来一句：“基本上可以鉴定为是江湖庸医的水准。”</p><p>另一个博士生在拆茶叶蛋，笑着接话：“不过他这话也没错呀，像现在AI加速、边缘计算这些，很多时候硬件不是问题，问题是能不能让它跑得起来，跑得快。”</p><p>Nomad点头，像是找到了支持：“我一直觉得，FPGA开发者社区应该也能形成自己的GitHub和Paper with Code，就像搞深度学习的那帮人一样。”</p><p>有人咕哝着：“那是烧钱堆出来的……”</p><p>但Nomad声音没停：“我们真正要实现的，是创造一个社群。只要开发者数量足够多，自然就会出现代码共享的平台，自然就会有人做debug服务，自然也会出现各种供人即插即用的IP。”</p><p>实验室一瞬间安静了，老莫终于开口，半讥讽半认真：“但这不是Xilinx和Intel他们公司该考虑的事吗？你一个博士生搞社群？”</p><p>Nomad摇头，神情罕见地认真：“不不，这是每一个FPGA开发者共同的愿景。Github也不是哪个公司开发的，但它确实推动了整个软件行业。我们也可以，只要……我们愿意试。”</p><p>屋外雷声再次炸响，玻璃窗轻轻抖了一下。老莫靠着椅背，望着窗外模糊一片的雨幕，沉默了几秒，然后笑了一声。</p><p>“你愿意试，那你就去做。”他说，“别等别人造船，有时候你得自己撑起一块木板，就算只是让别人知道这片海能漂。”</p><p>他低头，打开笔记本，翻出那个已经一年没动的私有仓库，敲下一行字：</p><blockquote><p>“FPGA开源社群计划 v0.1，夏初启动，雷雨为证。”</p></blockquote><p>Nomad笑了，伸手去碰老莫的屏幕，敲下一句：</p><blockquote><p>“等晴了，我们搞个README。”</p></blockquote>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>帝3——英国与法国打法</title>
+      <link href="/2024/06/14/%E5%B8%9D3%E2%80%94%E2%80%94%E6%B3%95%E5%9B%BD%E6%89%93%E6%B3%95/"/>
+      <url>/2024/06/14/%E5%B8%9D3%E2%80%94%E2%80%94%E6%B3%95%E5%9B%BD%E6%89%93%E6%B3%95/</url>
+      
+        <content type="html"><![CDATA[<h1 id="帝3——法国打法"><a href="#帝3——法国打法" class="headerlink" title="帝3——法国打法"></a>帝3——法国打法</h1><h3 id="土著流"><a href="#土著流" class="headerlink" title="土著流"></a>土著流</h3><p>14农三分钟之前开始升本。升本期间9农伐木，其余吃肉。<strong>4分30秒完成升本</strong>。一卡700木，二卡原住民条约。起一个贸易战，一个兵营。此时对面可能会来压原住民交易站。</p><h1 id="英国打法"><a href="#英国打法" class="headerlink" title="英国打法"></a>英国打法</h1><h3 id="格林尼治时间FI"><a href="#格林尼治时间FI" class="headerlink" title="格林尼治时间FI"></a>格林尼治时间FI</h3><p>英国开局拥有300木，起一个TP后，用两农伐木，或者打木宝攒够140木，起一个房子。<strong>一卡格林尼治时间</strong>。<strong>3分钟左右</strong>以14农塔金上本。此时因为有2TP。理想情况下<strong>4分钟左右</strong>即可完成上本。</p><p>上本后一卡700金，二卡700木。<strong>5分40秒</strong>7豪德战斧兵上三本。同时三卡发出<strong>光荣革命</strong>。700木用于起4个房子与一个教堂。同样，在<strong>7分钟之前</strong>，可以成功上三本。上本期间<strong>所有农吃肉</strong>。</p><p>三本后一卡发2炮，攒够1000肉后出苏格兰黑卫士军团。此时应在<strong>8分半左右</strong>，以8黑卫士7战斧兵和二炮挡住对手的进攻，或是压对面的家。<br>二卡发1000金，准备升级工业时代。工业时代选择可以2鹰炮升级。</p><p><strong>12分左右</strong>，工业时代后，一卡可选择发3火箭或者<strong>长矛绅士</strong>。</p><p>该流程时代3因为缺经济，很容易站不稳。</p><h3 id="两房经济型殖民rush"><a href="#两房经济型殖民rush" class="headerlink" title="两房经济型殖民rush"></a>两房经济型殖民rush</h3><p>卡组：<br><img src="/2024/06/14/%E5%B8%9D3%E2%80%94%E2%80%94%E6%B3%95%E5%9B%BD%E6%89%93%E6%B3%95/2024-09-02-09-30-06.png" class=""></p><p>木箱收到280木时，正好可以起两个房子，此时停止收木箱。一卡发三农，17农时塔金上本，时间约为<strong>2分40秒</strong>左右。</p><p>上本期间12农伐木，其余农民赶肉或起房子。二本之前，起4个房子，并保证有200木用于起一个前置兵营。</p><p>二本后，<strong>一卡700木</strong>。12农打猎，其余农伐木，如果对方是兵营开，则持续出长弓兵，否则就出火枪兵。多余的木头用于起房子。<strong>5分钟左右发二卡600木</strong>，起市场并研究一级二级打猎科技。三卡可视情况发兵卡或4农卡。</p><p><strong>7分20秒</strong>，英国应有33农与120的人口。此时可以研究市场一级伐木科技并起一个马厩。之后开始长矛兵长弓兵与骑兵配合压制。</p>]]></content>
       
       
       
@@ -881,6 +869,31 @@
         <tags>
             
             <tag> 数字加速器 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>帝3——意大利阿根廷革命流</title>
+      <link href="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/"/>
+      <url>/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/</url>
+      
+        <content type="html"><![CDATA[<h1 id="帝3——意大利阿根廷革命流"><a href="#帝3——意大利阿根廷革命流" class="headerlink" title="帝3——意大利阿根廷革命流"></a>帝3——意大利阿根廷革命流</h1><p>视频教学参考：<a href="https://www.bilibili.com/video/BV15w4m1i7t4/">https://www.bilibili.com/video/BV15w4m1i7t4/</a></p><p>卡组参考：<br>小海龟oo的边境防御工事<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-18-45-47.png" class=""></p><h3 id="探索时代："><a href="#探索时代：" class="headerlink" title="探索时代："></a>探索时代：</h3><p>开局用建筑师起市场，攒够木头之后加速建造。紧接着建筑师起一个房子。市场第一个科技研究大衣，之后市场卖食物研究猎犬，农民攻击力，并准备资源研究2级打猎。房子起好后建筑师去起TP。</p><p>一卡发资本主义，紧接着研究一级伐木。<strong>17农升二本</strong>，理想情况下<strong>3分10秒</strong>点下升级按钮。升级选<strong>塔金</strong>（总督）。</p><p>升级期间9农伐木，4农采金，其余赶肉。尽快用木头加速TP的建造，紧接着建筑师回家起一个房子与伦巴第。金子采够后造一个建筑师，采够75木升级一级采金后，7农采金，其余吃肉。</p><h3 id="商业时代："><a href="#商业时代：" class="headerlink" title="商业时代："></a>商业时代：</h3><h4 id="小海龟卡组"><a href="#小海龟卡组" class="headerlink" title="小海龟卡组"></a>小海龟卡组</h4><p><strong>4分50秒</strong>左右上本完成，塔放家里，上本后第一时间发700金，并准备造第三个建筑师。所有建筑师一起敲伦巴第。<br><strong>6分钟</strong>之前升级三本，选择<strong>篷车升级</strong>（主教），此时大概有19农。<br>升本期间，建筑师敲第二个伦巴第。</p><h4 id="乐于卡组"><a href="#乐于卡组" class="headerlink" title="乐于卡组"></a>乐于卡组</h4><h3 id="要塞时代："><a href="#要塞时代：" class="headerlink" title="要塞时代："></a>要塞时代：</h3><p><strong>6分50秒</strong>左右上本完成，并且两个伦巴第也建造完成，建筑师开始敲第三个城镇中心（或者敲大教堂）。三本<strong>第一卡发4塔</strong>。第二卡发<strong>卢卡金融家（1200木）</strong>，伦巴第投资剩余的木头。所有农民去吃肉。建筑师修完城镇中心后，再起三个伦巴第。第三卡发 <strong>热那亚金融家 (1200金)</strong>。<strong>10分50秒左右升级工业</strong>，选择<strong>宗座瑞士近卫队</strong>。</p><p>升级期间，建筑师起大教堂，出一轮<strong>教宗骑士</strong>，并升级教堂科技。</p><h3 id="工业时代："><a href="#工业时代：" class="headerlink" title="工业时代："></a>工业时代：</h3><p>发两鹰炮两长炮，先守住第一波攻势。兵营保持出神射手，别让伦巴第全被推了！小海龟这一把瑞典直接推了五门炮过来，依靠10神射手+3教宗骑士+升级送的宗座瑞士近卫队+发的两鹰炮两长炮+民兵才守住。但损失惨重，伦巴第被拆了个干净，里面的资源全没了。教训是：应该至少把一个伦巴第后置，总之这一波一定要守住！<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-19-16-57.png" class=""></p><p><strong>FI打法：</strong><br>发工厂。之后发<strong>佛罗伦萨金融家 （2300金）</strong>，再出一轮教宗骑士。兵营保持出神射手。第三卡发<strong>教宗火炮</strong>，然后进入暴兵状态。</p><p><strong>阿根廷革命</strong><br>直接发<strong>佛罗伦萨金融家 （2300金）</strong>，同时攒革命的资源，卡发到后立即阿根廷革命。时间大概在<strong>14分50秒左右</strong>。另外提前造两个牲畜栏，并升级法外之徒。阿根廷送10个高乔人。<br>一卡直接发近卫掷弹骑兵，然后准备1200金发圣马丁（13近卫掷弹骑兵+10军团龙骑兵+1英雄圣马丁），之后再接阿根廷迫击炮。<br>经济可以通过发无限8牛来补食物，并通过伦巴第投资食物来补充木头和黄金。</p><p>高乔人数据<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-21-27-17.png" class=""></p><p>高乔人可以训练牛<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-21-28-19.png" class=""></p><p>近卫掷弹骑兵<br><img src="/2024/06/10/%E5%B8%9D3%E2%80%94%E2%80%94%E6%84%8F%E5%A4%A7%E5%88%A9%E9%98%BF%E6%A0%B9%E5%BB%B7%E9%9D%A9%E5%91%BD%E6%B5%81/2024-06-10-21-33-38.png" class=""></p><p>兵工厂研究燃烧弹后可以拥有更大的爆炸半径。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 游戏 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 帝国时代 </tag>
             
         </tags>
       
@@ -1119,6 +1132,19 @@
     </entry>
     
     
+    
+    <entry>
+      <title>版图设计中的一些小tips</title>
+      <link href="/2022/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/"/>
+      <url>/2022/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/</url>
+      
+        <content type="html"><![CDATA[<h1 id="版图设计中的一些小tips"><a href="#版图设计中的一些小tips" class="headerlink" title="版图设计中的一些小tips"></a>版图设计中的一些小tips</h1><h4 id="Via-enclosure应该怎么画"><a href="#Via-enclosure应该怎么画" class="headerlink" title="Via enclosure应该怎么画"></a>Via enclosure应该怎么画</h4><p>以TSMC 28nm HPCPLUS为例：<br>常见的DRC报错为Mx.EN.2<strong>Mx.EN.3</strong>Mx.EN.14__Mx.EN.15:</p><p>相关的DRC rule列出如下：<br>Mx.EN.2：   Enclosure of square VIAx-1 [at least two opposite sides]        N $\geq$ 0.03<br>Mx.EN.3：   Enclosure of VIAx-1 [all sides]     P $\geq$ 0.02<br>Mx.EN.14：  Enclosure of square VIAx-1      M $\geq$ 0.01<br>Mx.EN.15：  Enclosure of square VIAx-1 [at least two opposite sides]      N $\geq$ 0.025</p><img src="/2022/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/2024-10-09-10-24-16.png" class=""><h4 id="cell无法复制的问题"><a href="#cell无法复制的问题" class="headerlink" title="cell无法复制的问题"></a>cell无法复制的问题</h4><p>一般是版图中包含markers导致复制不成功，删除掉marker即可。<br><img src="/2022/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/2024-10-09-11-25-00.png" class=""></p><h4 id="VIVA-Graph测量pulse-width快捷键"><a href="#VIVA-Graph测量pulse-width快捷键" class="headerlink" title="VIVA Graph测量pulse width快捷键"></a>VIVA Graph测量pulse width快捷键</h4><p>A:  添加sample点<br>D:  测量差距</p><h4 id="schematics中生成多个instance"><a href="#schematics中生成多个instance" class="headerlink" title="schematics中生成多个instance"></a>schematics中生成多个instance</h4><p>示例：<br><img src="/2022/10/09/%E7%89%88%E5%9B%BE%E8%AE%BE%E8%AE%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E4%BA%9B%E5%B0%8Ftips/2024-10-15-11-10-32.png" class=""></p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
   
   
     
@@ -1127,50 +1153,6 @@
       <title></title>
       <link href="/about/index.html"/>
       <url>/about/index.html</url>
-      
-        <content type="html"><![CDATA[]]></content>
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title></title>
-      <link href="/link/index.html"/>
-      <url>/link/index.html</url>
-      
-        <content type="html"><![CDATA[]]></content>
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title></title>
-      <link href="/movies/index.html"/>
-      <url>/movies/index.html</url>
-      
-        <content type="html"><![CDATA[]]></content>
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title></title>
-      <link href="/music/index.html"/>
-      <url>/music/index.html</url>
-      
-        <content type="html"><![CDATA[]]></content>
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title>categories</title>
-      <link href="/categories/index.html"/>
-      <url>/categories/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
       
@@ -1201,9 +1183,53 @@
     
     
     <entry>
+      <title>categories</title>
+      <link href="/categories/index.html"/>
+      <url>/categories/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>tags</title>
       <link href="/tags/index.html"/>
       <url>/tags/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/movies/index.html"/>
+      <url>/movies/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/music/index.html"/>
+      <url>/music/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title></title>
+      <link href="/link/index.html"/>
+      <url>/link/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
       
